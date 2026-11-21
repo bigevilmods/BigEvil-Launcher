@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'dashboard.dart';
 import 'entry_status.dart';
 import 'item_download.dart';
+import 'item_installation.dart';
+import 'item_updates.dart';
 import 'library.dart';
 import 'localization.dart';
 import 'online_browser.dart';
@@ -17,13 +19,13 @@ class EntryDetails extends StatefulWidget {
     required this.entry,
     required this.onOpen,
     this.onEdit,
-    this.onDownloaded,
+    this.onPlayable,
   });
 
   final Entry entry;
   final Future<void> Function(Entry) onOpen;
   final Future<Entry?> Function(Entry)? onEdit;
-  final ValueChanged<Entry>? onDownloaded;
+  final ValueChanged<Entry>? onPlayable;
 
   @override
   State<EntryDetails> createState() => _EntryDetailsState();
@@ -36,6 +38,9 @@ class _EntryDetailsState extends State<EntryDetails> {
   Future<Map<String, dynamic>?>? _release;
   String? _repository;
   bool _downloading = false;
+  bool _installing = false;
+  bool _canPlay = false;
+  bool _installerOpened = false;
   double? _downloadProgress;
   String? _downloadPath;
 
@@ -54,9 +59,10 @@ class _EntryDetailsState extends State<EntryDetails> {
 
   Future<void> _refreshDownload() async {
     final entry = _entry;
-    final path = await Updater.savedItemPath(entry);
+    final canPlay = await ItemInstallation.canPlay(entry);
     if (mounted && !_downloading && identical(entry, _entry)) {
-      setState(() => _downloadPath = path);
+      setState(() => _canPlay = canPlay);
+      if (canPlay) widget.onPlayable?.call(entry);
     }
   }
 
@@ -67,12 +73,12 @@ class _EntryDetailsState extends State<EntryDetails> {
   }
 
   void _checkStatus() {
-    _installation = EntryStatus.hasInstallationId(_entry)
-        ? EntryStatus.installedVersion(_entry)
-        : null;
     final repository = _repository =
         EntryStatus.repository(_entry.repositoryUrl) ??
         EntryStatus.repository(_entry.downloadUrl);
+    _installation = repository != null || EntryStatus.hasInstallationId(_entry)
+        ? ItemUpdates.installedVersion(_entry).then((version) => version?.tag)
+        : null;
     _release = repository == null ? null : Updater.latestRelease(repository);
   }
 
@@ -80,19 +86,24 @@ class _EntryDetailsState extends State<EntryDetails> {
     if (_downloading) return;
     final repository = _repository;
     final entry = _entry;
-    final onDownloaded = widget.onDownloaded;
+    final onPlayable = widget.onPlayable;
     setState(() {
       _downloading = true;
       _downloadProgress = null;
+      _installerOpened = false;
     });
     try {
       void progress(double? value) {
         if (mounted) setState(() => _downloadProgress = value);
       }
 
+      void installing() {
+        if (mounted) setState(() => _installing = true);
+      }
+
       final direct = Library.webUri(_entry.downloadUrl);
       final file = repository == null
-          ? await Updater.downloadItem(
+          ? await ItemInstallation.downloadAndInstall(
               entry,
               direct!,
               direct.pathSegments.lastWhere(
@@ -100,12 +111,17 @@ class _EntryDetailsState extends State<EntryDetails> {
                 orElse: () => 'download',
               ),
               progress,
+              installing,
             )
-          : await _downloadRelease(entry, repository, progress);
+          : await _downloadRelease(entry, repository, progress, installing);
       if (mounted && identical(entry, _entry)) {
-        setState(() => _downloadPath = file.path);
+        setState(() {
+          _downloadPath = file?.path;
+          _installerOpened = file == null;
+          if (file != null) _canPlay = true;
+        });
       }
-      onDownloaded?.call(entry);
+      if (file != null) onPlayable?.call(entry);
     } catch (error) {
       if (mounted) {
         final messages = context.messages;
@@ -118,14 +134,21 @@ class _EntryDetailsState extends State<EntryDetails> {
         );
       }
     } finally {
-      if (mounted) setState(() => _downloading = false);
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _installing = false;
+        });
+        _refreshDownload();
+      }
     }
   }
 
-  Future<File> _downloadRelease(
+  Future<File?> _downloadRelease(
     Entry entry,
     String repository,
     void Function(double?) progress,
+    void Function() installing,
   ) async {
     final check = Updater.latestRelease(repository);
     setState(() => _release = check);
@@ -136,14 +159,16 @@ class _EntryDetailsState extends State<EntryDetails> {
     if (package == null) {
       throw LocalizedFailure((messages) => messages.noItemPackage);
     }
-    return Updater.downloadItem(
+    return ItemInstallation.downloadAndInstall(
       entry,
       package.url,
       package.name,
       progress,
+      installing,
       size: package.size,
       digest: package.digest,
       github: true,
+      version: package.version,
     );
   }
 
@@ -153,6 +178,8 @@ class _EntryDetailsState extends State<EntryDetails> {
       setState(() {
         _entry = edited;
         _downloadPath = null;
+        _canPlay = false;
+        _installerOpened = false;
         _checkStatus();
       });
       _refreshDownload();
@@ -367,9 +394,9 @@ class _EntryDetailsState extends State<EntryDetails> {
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      if (entry.target.isNotEmpty)
+                      if (game || entry.target.isNotEmpty || _canPlay)
                         FilledButton.icon(
-                          onPressed: game && _downloadPath == null
+                          onPressed: game && !_canPlay
                               ? null
                               : () => widget.onOpen(entry),
                           icon: const Icon(Icons.play_arrow_rounded),
@@ -401,7 +428,7 @@ class _EntryDetailsState extends State<EntryDetails> {
                         OutlinedButton.icon(
                           onPressed: _downloading ? null : _downloadItem,
                           icon: const Icon(Icons.download_outlined),
-                          label: Text(context.messages.download),
+                          label: Text(context.messages.downloadAndInstall),
                         ),
                       if (Library.isWebLink(entry.repositoryUrl))
                         OutlinedButton.icon(
@@ -413,11 +440,18 @@ class _EntryDetailsState extends State<EntryDetails> {
                   ),
                   if (_downloading) ...[
                     const SizedBox(height: 12),
-                    LinearProgressIndicator(value: _downloadProgress),
+                    if (_installing) Text(context.messages.installingItem),
+                    LinearProgressIndicator(
+                      value: _installing ? null : _downloadProgress,
+                    ),
                   ],
                   if (_downloadPath case final path?) ...[
                     const SizedBox(height: 12),
-                    SelectableText(context.messages.itemDownloadSaved(path)),
+                    SelectableText(context.messages.itemInstalledPath(path)),
+                  ],
+                  if (_installerOpened) ...[
+                    const SizedBox(height: 12),
+                    Text(context.messages.itemInstallerOpened),
                   ],
                   const SizedBox(height: 24),
                   Text(

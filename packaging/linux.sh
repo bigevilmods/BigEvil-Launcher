@@ -18,7 +18,7 @@ Package: bigevil-launcher
 Version: $version
 Architecture: amd64
 Maintainer: BigEvil Launcher
-Depends: libgtk-3-0, libstdc++6, libglib2.0-bin, libwebkit2gtk-4.1-0
+Depends: libgtk-3-0, libstdc++6, libglib2.0-bin, libwebkit2gtk-4.1-0, libarchive-tools
 Description: Biblioteca local de jogos e aplicativos
 EOF
 cat > "$stage/usr/share/applications/bigevil-launcher.desktop" <<'EOF'

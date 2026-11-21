@@ -2,7 +2,29 @@ import 'dart:ffi' show Abi;
 
 import 'updates.dart';
 
-typedef ItemPackage = ({String name, Uri url, int size, String? digest});
+typedef ItemVersion = ({String tag, DateTime? publishedAt, String? revision});
+typedef ItemPackage = ({
+  String name,
+  Uri url,
+  int size,
+  String? digest,
+  ItemVersion version,
+});
+
+bool isNewerItemVersion(ItemVersion candidate, ItemVersion installed) {
+  if (candidate.tag == installed.tag) {
+    return candidate.revision != null &&
+        installed.revision != null &&
+        candidate.revision != installed.revision;
+  }
+  if (versionPattern.hasMatch(candidate.tag) &&
+      versionPattern.hasMatch(installed.tag)) {
+    return isNewer(candidate.tag, installed.tag);
+  }
+  final published = candidate.publishedAt;
+  final previous = installed.publishedAt;
+  return published != null && previous != null && published.isAfter(previous);
+}
 
 ItemPackage? selectItemPackage(
   Map<String, dynamic> release,
@@ -55,11 +77,22 @@ ItemPackage? selectItemPackage(
     final score = _packageScore(name.toLowerCase(), abi);
     if (score <= bestScore) continue;
     bestScore = score;
+    final published = release['published_at'];
+    final id = asset['id'];
     selected = (
       name: name,
       url: url,
       size: size,
       digest: digest is String ? digest.substring(7).toLowerCase() : null,
+      version: (
+        tag: tag,
+        publishedAt: published is String ? DateTime.tryParse(published) : null,
+        revision: digest is String
+            ? digest.toLowerCase()
+            : id is int
+            ? id.toString()
+            : null,
+      ),
     );
   }
   return selected;
@@ -104,7 +137,10 @@ int _packageScore(String name, Abi abi) {
       abi == Abi.androidArm64 ||
       abi == Abi.androidIA32 ||
       abi == Abi.androidX64) {
-    return name.endsWith('.apk') ? 30 + architectureScore : 0;
+    if (name.endsWith('.apk')) return 30 + architectureScore;
+    return token('android') && name.endsWith('.zip')
+        ? 10 + architectureScore
+        : 0;
   }
   if (abi == Abi.windowsArm64 ||
       abi == Abi.windowsIA32 ||
@@ -112,7 +148,8 @@ int _packageScore(String name, Abi abi) {
     if (token('linux|android|darwin|macos|osx')) return 0;
     if (name.endsWith('.msi')) return 30 + architectureScore;
     if (name.endsWith('.exe')) return 20 + architectureScore;
-    if (token('windows|win|win32|win64') && name.endsWith('.zip')) {
+    if (token('windows|win|win32|win64') &&
+        RegExp(r'\.(zip|rar)$').hasMatch(name)) {
       return 10 + architectureScore;
     }
     return 0;
@@ -122,7 +159,7 @@ int _packageScore(String name, Abi abi) {
   if (name.endsWith('.appimage')) return 30 + architectureScore;
   if (name.endsWith('.rpm')) return 20 + architectureScore;
   if (token('linux') &&
-      RegExp(r'\.(tar\.(gz|xz|bz2|zst)|tgz|zip)$').hasMatch(name)) {
+      RegExp(r'\.(tar\.(gz|xz|bz2|zst)|tgz|zip|rar)$').hasMatch(name)) {
     return 10 + architectureScore;
   }
   return 0;

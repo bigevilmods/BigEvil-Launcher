@@ -15,6 +15,7 @@ class Entry {
     this.androidPackage = '',
     this.windowsUninstallKey = '',
     this.linuxPackage = '',
+    this.executable = '',
     Iterable<String> platforms = const [],
   }) : platforms = List.unmodifiable(_platforms(platforms)),
        searchKey = '$name $target $developer'.toLowerCase();
@@ -32,6 +33,7 @@ class Entry {
   final String androidPackage;
   final String windowsUninstallKey;
   final String linuxPackage;
+  final String executable;
   final List<String> platforms;
   final String searchKey;
 
@@ -49,6 +51,7 @@ class Entry {
     androidPackage: json['androidPackage'] as String? ?? '',
     windowsUninstallKey: json['windowsUninstallKey'] as String? ?? '',
     linuxPackage: json['linuxPackage'] as String? ?? '',
+    executable: json['executable'] as String? ?? '',
     platforms: switch (json['plataforma']) {
       final String name => [name],
       final List values => values.whereType<String>(),
@@ -79,6 +82,7 @@ class Entry {
     if (windowsUninstallKey.isNotEmpty)
       'windowsUninstallKey': windowsUninstallKey,
     if (linuxPackage.isNotEmpty) 'linuxPackage': linuxPackage,
+    if (executable.isNotEmpty) 'executable': executable,
     if (platforms.isNotEmpty) 'plataforma': platforms,
   };
 }

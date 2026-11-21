@@ -562,7 +562,7 @@ class DashboardCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 5),
-                    if (!hasTarget)
+                    if (!hasTarget && !canPlay)
                       TextButton(
                         onPressed: onDetails,
                         child: Text(context.messages.details),

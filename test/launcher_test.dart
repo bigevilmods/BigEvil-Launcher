@@ -5,6 +5,7 @@ import 'package:bigevil_launcher/dashboard.dart';
 import 'package:bigevil_launcher/entry_details.dart';
 import 'package:bigevil_launcher/entry_status.dart';
 import 'package:bigevil_launcher/item_download.dart';
+import 'package:bigevil_launcher/item_installation.dart';
 import 'package:bigevil_launcher/library.dart';
 import 'package:bigevil_launcher/main.dart';
 import 'package:bigevil_launcher/updates.dart';
@@ -213,6 +214,46 @@ void main() {
     expect(select(Abi.macosArm64), isNull);
   });
 
+  test('item updates compare versions and detect replaced release assets', () {
+    ItemVersion version(String tag, {DateTime? date, String? revision}) =>
+        (tag: tag, publishedAt: date, revision: revision);
+    final early = DateTime.utc(2025);
+    final late = DateTime.utc(2026);
+    expect(isNewerItemVersion(version('v1.4.0'), version('1.3.0')), isTrue);
+    expect(
+      isNewerItemVersion(
+        version('v1.2.0', date: late),
+        version('v1.3.0', date: early),
+      ),
+      isFalse,
+    );
+    expect(
+      isNewerItemVersion(
+        version('release', revision: '2'),
+        version('release', revision: '1'),
+      ),
+      isTrue,
+    );
+    expect(
+      isNewerItemVersion(
+        version('release', revision: '1'),
+        version('release', revision: '1'),
+      ),
+      isFalse,
+    );
+    expect(
+      isNewerItemVersion(
+        version('current', date: late),
+        version('old', date: early),
+      ),
+      isTrue,
+    );
+    expect(
+      isNewerItemVersion(version('current', date: late), version('unknown')),
+      isFalse,
+    );
+  });
+
   testWidgets('details gate local play and require an online URL', (
     tester,
   ) async {
@@ -249,7 +290,7 @@ void main() {
     expect(find.text('Studio'), findsOneWidget);
     expect(find.text('Pistas para corrida.'), findsOneWidget);
     expect(find.text('Repositório'), findsOneWidget);
-    expect(find.text('Baixar'), findsOneWidget);
+    expect(find.text('Baixar e instalar'), findsOneWidget);
     expect(find.text('Jogar online'), findsOneWidget);
     expect(find.text('Sega Dreamcast'), findsOneWidget);
     final play = find.widgetWithText(FilledButton, 'Jogar');
@@ -260,6 +301,38 @@ void main() {
     );
     expect(find.text('Jogar online'), findsNothing);
   });
+
+  test('Windows archive extraction finds a selected executable', () async {
+    final root = await Directory.systemTemp.createTemp('bigevil-archive-');
+    addTearDown(() => root.delete(recursive: true));
+    final source = await Directory('${root.path}/source').create();
+    await File('${source.path}/Game.exe').writeAsBytes([77, 90, 0, 0]);
+    await File('${source.path}/Helper.exe').writeAsBytes([77, 90, 0, 0]);
+    final archive = File('${root.path}/game.zip');
+    final tar =
+        '${Platform.environment['SystemRoot'] ?? r'C:\Windows'}\\System32\\tar.exe';
+    final packed = await Process.run(tar, [
+      '-acf',
+      archive.path,
+      '-C',
+      source.path,
+      '.',
+    ]);
+    expect(packed.exitCode, 0, reason: packed.stderr.toString());
+    final content = await Directory('${root.path}/content').create();
+    final executable = await ItemInstallation.extractExecutable(
+      archive,
+      content,
+      'Game.exe',
+    );
+    expect(executable.path, endsWith('Game.exe'));
+
+    final ambiguous = await Directory('${root.path}/ambiguous').create();
+    await expectLater(
+      ItemInstallation.extractExecutable(archive, ambiguous, ''),
+      throwsStateError,
+    );
+  }, skip: !Platform.isWindows);
 
   test('release rejects wrong host, missing digest and unbounded packages', () {
     const repository = 'owner/repo';

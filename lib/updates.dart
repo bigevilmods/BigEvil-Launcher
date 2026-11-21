@@ -180,73 +180,26 @@ class Updater {
   }
 
   static Future<File> downloadItem(
-    Entry entry,
     Uri address,
-    String name,
+    File output,
     void Function(double?) progress, {
     int? size,
     String? digest,
     bool github = false,
   }) async {
+    final name = output.uri.pathSegments.last;
     if (!isDownloadName(name) || !_allowedDownloadUrl(address, github)) {
       throw LocalizedFailure((messages) => messages.invalidAddress);
     }
-    final downloads = await _itemDownloads(entry);
-    await downloads.create(recursive: true);
-    final directory = await downloads.createTemp('download-');
-    try {
-      return await _download(
-        address,
-        File('${directory.path}/$name'),
-        progress,
-        size: size,
-        digest: digest,
-        github: github,
-        limit: maximumItemBytes,
-      );
-    } catch (_) {
-      await directory.delete();
-      rethrow;
-    }
-  }
-
-  static Future<Directory> _itemDownloads(Entry entry) async {
-    final root =
-        await getDownloadsDirectory() ?? await getApplicationSupportDirectory();
-    final key = sha256.convert(
-      utf8.encode(
-        jsonEncode([
-          entry.kind.name,
-          entry.name,
-          entry.repositoryUrl,
-          entry.downloadUrl,
-        ]),
-      ),
+    return _download(
+      address,
+      output,
+      progress,
+      size: size,
+      digest: digest,
+      github: github,
+      limit: maximumItemBytes,
     );
-    return Directory('${root.path}/BigEvil Launcher/$key');
-  }
-
-  static Future<String?> savedItemPath(Entry entry) async {
-    try {
-      final directory = await _itemDownloads(entry);
-      if (!await directory.exists()) return null;
-      File? latest;
-      DateTime? modified;
-      await for (final transfer in directory.list(followLinks: false)) {
-        if (transfer is! Directory) continue;
-        await for (final item in transfer.list(followLinks: false)) {
-          if (item is! File) continue;
-          final timestamp = await item.lastModified();
-          if (modified == null || timestamp.isAfter(modified)) {
-            latest = item;
-            modified = timestamp;
-          }
-        }
-      }
-      return latest?.path;
-    } catch (_) {
-      return null;
-    }
   }
 
   static bool isDownloadName(String name) =>

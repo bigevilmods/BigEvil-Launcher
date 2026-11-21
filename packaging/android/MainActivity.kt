@@ -11,8 +11,22 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.zip.ZipFile
 
 class MainActivity : FlutterActivity() {
+    private var pendingItemInstall: File? = null
+
+    override fun onResume() {
+        super.onResume()
+        val file = pendingItemInstall ?: return
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) return
+        pendingItemInstall = null
+        if (file.isFile) {
+            runCatching { install(file) }
+                .onFailure { android.util.Log.e("BigEvil Launcher", "Could not start APK installer", it) }
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bigevil/android")
@@ -44,6 +58,22 @@ class MainActivity : FlutterActivity() {
                         install(File(call.arguments as String))
                         result.success(null)
                     }
+                    "installItem" -> {
+                        install(File(call.arguments as String), deferPermission = true)
+                        result.success(null)
+                    }
+                    "extractItemApk" -> {
+                        val archive = updateFile(File(call.argument<String>("archive")!!))
+                        val preferred = call.argument<String>("executable").orEmpty()
+                        Thread {
+                            try {
+                                val apk = extractItemApk(archive, preferred)
+                                runOnUiThread { result.success(apk.path) }
+                            } catch (error: Exception) {
+                                runOnUiThread { result.error("archive", error.message, null) }
+                            }
+                        }.start()
+                    }
                     else -> result.notImplemented()
                 }
             } catch (error: ActivityNotFoundException) {
@@ -68,12 +98,48 @@ class MainActivity : FlutterActivity() {
             .sortedBy { it.getValue("name").lowercase() }
     }
 
-    private fun install(candidate: File) {
+    private fun updateFile(candidate: File): File {
         val directory = File(cacheDir, "updates").canonicalFile
         val file = candidate.canonicalFile
         require(file.path.startsWith(directory.path + File.separator) && file.isFile)
+        return file
+    }
+
+    private fun extractItemApk(archive: File, preferred: String): File {
+        val output = File(archive.parentFile, "payload.apk")
+        val limit = 10L * 1024 * 1024 * 1024
+        ZipFile(archive).use { zip ->
+            val entry = zip.entries().asSequence().filter {
+                !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) &&
+                    (preferred.isEmpty() || it.name == preferred)
+            }.singleOrNull() ?: error("ZIP must contain one selected APK")
+            require(entry.size in 1..limit)
+            zip.getInputStream(entry).use { input ->
+                output.outputStream().use { target ->
+                    val buffer = ByteArray(64 * 1024)
+                    var received = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        received += count
+                        require(received <= entry.size)
+                        target.write(buffer, 0, count)
+                    }
+                    require(received == entry.size)
+                }
+            }
+        }
+        return output
+    }
+
+    private fun install(candidate: File, deferPermission: Boolean = false) {
+        val file = updateFile(candidate)
         if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            if (deferPermission) {
+                pendingItemInstall = file
+                return
+            }
             throw InstallPermissionRequired()
         }
         val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)

@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dashboard.dart';
 import 'entry_details.dart';
+import 'item_installation.dart';
+import 'item_updates.dart';
 import 'library.dart';
 import 'localization.dart';
 import 'updates.dart';
@@ -88,7 +90,7 @@ class Launcher extends StatefulWidget {
 
 class _LauncherState extends State<Launcher> {
   List<Entry> _entries = [];
-  final Set<Entry> _downloadedGames = {};
+  final Set<Entry> _playableGames = {};
   String _query = '';
   String _repository = '';
   Kind? _filter;
@@ -102,6 +104,12 @@ class _LauncherState extends State<Launcher> {
   bool _changingLanguage = false;
   File? _package;
   double? _progress;
+  static const _updateInterval = Duration(hours: 6);
+  final _itemUpdates = ItemUpdates();
+  late final AppLifecycleListener _lifecycle;
+  DateTime? _lastItemCheck;
+  bool _checkingItems = false;
+  Timer? _itemTimer;
   Timer? _timer;
 
   Future<void> _chooseLanguage() async {
@@ -143,12 +151,15 @@ class _LauncherState extends State<Launcher> {
     super.initState();
     unawaited(_load());
     unawaited(_configureUpdates());
-    _timer = Timer.periodic(const Duration(hours: 6), (_) => _check());
+    _lifecycle = AppLifecycleListener(onResume: _checkItemUpdates);
+    _timer = Timer.periodic(_updateInterval, (_) => _check());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _itemTimer?.cancel();
+    _lifecycle.dispose();
     super.dispose();
   }
 
@@ -161,18 +172,20 @@ class _LauncherState extends State<Launcher> {
             .where((entry) => entry.kind == Kind.game)
             .map(
               (entry) async =>
-                  await Updater.savedItemPath(entry) == null ? null : entry,
+                  await ItemInstallation.canPlay(entry) ? entry : null,
             ),
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _entries = entries;
-          _downloadedGames
+          _playableGames
             ..clear()
             ..addAll(downloaded.whereType<Entry>());
           _loadFailed = false;
           _loading = false;
         });
+        unawaited(_checkItemUpdates());
+      }
     } catch (error) {
       if (mounted)
         setState(() {
@@ -183,6 +196,52 @@ class _LauncherState extends State<Launcher> {
         (messages) =>
             messages.libraryReadError(localizedError(messages, error)),
       );
+    }
+  }
+
+  Future<void> _checkItemUpdates() async {
+    bool active() {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      return mounted &&
+          (!Platform.isAndroid ||
+              lifecycle == null ||
+              lifecycle == AppLifecycleState.resumed);
+    }
+
+    final lastCheck = _lastItemCheck;
+    if (!active() ||
+        _checkingItems ||
+        _entries.isEmpty ||
+        (lastCheck != null &&
+            DateTime.now().difference(lastCheck) < _updateInterval)) {
+      return;
+    }
+    _checkingItems = true;
+    try {
+      await _itemUpdates.check(
+        _entries,
+        active: active,
+        onUpdated: (entry, version, portable) {
+          if (!mounted) return;
+          if (portable && entry.kind == Kind.game) {
+            setState(() => _playableGames.add(entry));
+          }
+          _notify(
+            (messages) => portable
+                ? messages.itemAutomaticallyUpdated(entry.name, version)
+                : messages.itemInstallerOpened,
+          );
+        },
+        onError: (entry, error) =>
+            debugPrint('Could not update ${entry.name}: $error'),
+      );
+    } finally {
+      _checkingItems = false;
+      if (active()) {
+        _lastItemCheck = DateTime.now();
+        _itemTimer?.cancel();
+        _itemTimer = Timer(_updateInterval, _checkItemUpdates);
+      }
     }
   }
 
@@ -278,9 +337,9 @@ class _LauncherState extends State<Launcher> {
         builder: (_) => EntryDetails(
           entry: entry,
           onOpen: _open,
-          onDownloaded: (item) {
+          onPlayable: (item) {
             if (mounted && item.kind == Kind.game) {
-              setState(() => _downloadedGames.add(item));
+              setState(() => _playableGames.add(item));
             }
           },
         ),
@@ -290,12 +349,17 @@ class _LauncherState extends State<Launcher> {
 
   Future<void> _open(Entry entry) async {
     try {
-      if (entry.kind == Kind.game &&
-          await Updater.savedItemPath(entry) == null) {
-        if (mounted) setState(() => _downloadedGames.remove(entry));
-        return;
+      if (entry.kind == Kind.game) {
+        if (!await ItemInstallation.canPlay(entry)) {
+          if (mounted) setState(() => _playableGames.remove(entry));
+          return;
+        }
+        await ItemInstallation.launch(entry);
+      } else if (await ItemInstallation.canPlay(entry)) {
+        await ItemInstallation.launch(entry);
+      } else {
+        await Library.open(entry);
       }
-      await Library.open(entry);
     } catch (error) {
       _notify(
         (messages) =>
@@ -550,7 +614,7 @@ class _LauncherState extends State<Launcher> {
                                         _query.trim().isNotEmpty ||
                                         _platformFilter != null,
                                     onOpen: _open,
-                                    canPlay: _downloadedGames.contains,
+                                    canPlay: _playableGames.contains,
                                     onDetails: _showDetails,
                                   ),
                                 ),
