@@ -1,0 +1,47 @@
+name: Publicar índice de releases
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - catalog.json
+      - packaging/release_index.py
+      - .github/workflows/release-index.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-index
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Consultar releases
+        env:
+          RELEASE_INDEX_TOKEN: ${{ secrets.RELEASE_INDEX_TOKEN || github.token }}
+        run: python3 packaging/release_index.py "$RUNNER_TEMP/releases.json"
+      - name: Publicar JSON
+        run: |
+          set -euo pipefail
+          remote_ref=$(git ls-remote --heads origin refs/heads/release-index)
+          if [[ -n "$remote_ref" ]]; then
+            git fetch --depth=1 origin refs/heads/release-index
+            git switch -c release-index FETCH_HEAD
+          else
+            git switch --orphan release-index
+          fi
+          cp "$RUNNER_TEMP/releases.json" releases.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- releases.json
+          git commit -m "Atualiza índice de releases"
+          git push origin HEAD:refs/heads/release-index
