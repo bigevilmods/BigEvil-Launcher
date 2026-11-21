@@ -16,7 +16,7 @@ The built-in browser uses Android System WebView, Microsoft Edge WebView2 on Win
 
 ## Item catalog
 
-The launcher reads [catalog.json](catalog.json) from the official repository's `main` branch at startup. Publish changes to that branch to update the shared catalog without rebuilding the launcher. The catalog starts empty. Add one object per item to the JSON array:
+The launcher reads the [online catalog](https://raw.githubusercontent.com/bigevilmods/BigEvil-Launcher/refs/heads/main/catalog.json) at startup. Publish changes to [catalog.json](catalog.json) on `main` to update the shared catalog without rebuilding the launcher. Add one object per item to the JSON array:
 
 ```json
 [

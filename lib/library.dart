@@ -13,7 +13,7 @@ class Library {
   static const android = MethodChannel('bigevil/android');
   static final catalogUri = Uri.https(
     'raw.githubusercontent.com',
-    '/bigevilmods/BigEvil-Launcher/main/catalog.json',
+    '/bigevilmods/BigEvil-Launcher/refs/heads/main/catalog.json',
   );
 
   static Future<List<Entry>> load() async {
