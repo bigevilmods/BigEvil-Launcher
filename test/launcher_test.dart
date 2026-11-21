@@ -91,6 +91,11 @@ void main() {
     expect(Library.isWebLink('file:///tmp/example'), isFalse);
   });
 
+  test('blank update settings use the official repository by default', () {
+    expect(Updater.resolveRepository(''), 'bigevilmods/BigEvil-Launcher');
+    expect(Updater.resolveRepository('owner/fork'), 'owner/fork');
+  });
+
   test('release selection ignores old and prerelease builds', () {
     expect(isNewer('v1.10.0', '1.9.9'), isTrue);
     expect(isNewer('v1.0.0', '1.0.0'), isFalse);

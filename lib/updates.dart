@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:typed_data' show BytesBuilder;
 
@@ -13,7 +14,10 @@ const currentVersion = String.fromEnvironment(
   'BIGEVIL_VERSION',
   defaultValue: '1.3.0',
 );
-const defaultRepository = String.fromEnvironment('BIGEVIL_REPOSITORY');
+const defaultRepository = String.fromEnvironment(
+  'BIGEVIL_REPOSITORY',
+  defaultValue: 'bigevilmods/BigEvil-Launcher',
+);
 final repositoryPattern = RegExp(r'^[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$');
 final versionPattern = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$');
 const maximumPackageBytes = 512 * 1024 * 1024;
@@ -80,20 +84,24 @@ Release? selectRelease(
 }
 
 class Updater {
-  static String get asset => Platform.isAndroid
+  static String? get asset => Platform.isAndroid
       ? 'BigEvil-Launcher-android.apk'
-      : Platform.isWindows
-      ? 'BigEvil-Launcher-windows-x64.exe'
-      : 'BigEvil-Launcher-linux-x64.deb';
+      : switch (Abi.current()) {
+          Abi.windowsX64 => 'BigEvil-Launcher-windows-x64.exe',
+          Abi.linuxX64 => 'BigEvil-Launcher-linux-x64.deb',
+          _ => null,
+        };
+
+  static String resolveRepository(String value) =>
+      value.isEmpty ? defaultRepository : value;
 
   static Future<File> _settings() async =>
       File('${(await getApplicationSupportDirectory()).path}/repository.txt');
 
   static Future<String> repository() async {
     final file = await _settings();
-    return await file.exists()
-        ? (await file.readAsString()).trim()
-        : defaultRepository;
+    final saved = await file.exists() ? (await file.readAsString()).trim() : '';
+    return resolveRepository(saved);
   }
 
   static Future<void> saveRepository(String value) async {
@@ -107,7 +115,8 @@ class Updater {
     ..userAgent = 'BigEvil-Launcher/$currentVersion';
 
   static Future<Release?> check(String repository) async {
-    if (!repositoryPattern.hasMatch(repository)) return null;
+    final package = asset;
+    if (package == null || !repositoryPattern.hasMatch(repository)) return null;
     final client = _client();
     try {
       final request = await client.getUrl(
@@ -135,7 +144,7 @@ class Updater {
       return selectRelease(
         jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>,
         repository,
-        asset,
+        package,
         currentVersion,
       );
     } finally {

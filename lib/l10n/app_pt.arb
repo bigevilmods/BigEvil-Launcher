@@ -40,7 +40,7 @@
   "versionLabel": "Versão {version}",
   "publicRepo": "Repositório público",
   "repoPlaceholder": "proprietário/repositório",
-  "updateHelp": "O launcher procura e baixa novas versões em segundo plano. Deixe o campo vazio para desativar.",
+  "updateHelp": "O launcher procura e baixa novas versões em segundo plano. Deixe o campo vazio para usar o repositório padrão.",
   "cancel": "Cancelar",
   "saveAndCheck": "Salvar e verificar",
   "repoFormat": "Use o formato proprietário/repositório.",

@@ -96,7 +96,7 @@
   },
   "publicRepo": "Public repository",
   "repoPlaceholder": "owner/repository",
-  "updateHelp": "The launcher checks for and downloads new versions in the background. Leave the field empty to turn this off.",
+  "updateHelp": "The launcher checks for and downloads new versions in the background. Leave the field empty to use the default repository.",
   "cancel": "Cancel",
   "saveAndCheck": "Save and check",
   "repoFormat": "Use the owner/repository format.",

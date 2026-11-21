@@ -283,7 +283,7 @@ class _LauncherState extends State<Launcher> {
       await Updater.saveRepository(repository);
       if (!mounted) return;
       setState(() {
-        _repository = repository;
+        _repository = Updater.resolveRepository(repository);
         _package = null;
         _updateVersion = null;
         _updateFailure = null;
