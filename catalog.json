@@ -13,6 +13,19 @@
     "target": ""
   },
   {
+    "name": "World of Magic - Starring Mickey Mouse NSE Recomp",
+    "kind": "game",
+    "plataforma": ["Windows"],
+    "description": "Static Recomp for World of Magic from NES",
+    "developer": "BigEvil",
+    "coverPath": "https://i.ytimg.com/vi/aeyYyU4YwJM/oardefault.jpg?sqp=-oaymwEYCJUDENAFSFqQAgHyq4qpAwcIARUAAIhC&rs=AOn4CLBm_wSowwaj7i8CCrsmGzaVqJ71nQhttps://i.ytimg.com/vi/aeyYyU4YwJM/oardefault.jpg?sqp=-oaymwEYCJUDENAFSFqQAgHyq4qpAwcIARUAAIhC&rs=AOn4CLBm_wSowwaj7i8CCrsmGzaVqJ71nQ",
+    "backgroundPath": "https://i.ytimg.com/vi/WRJXb0aHBgQ/maxresdefault.jpg",
+    "repositoryUrl": "https://github.com/bigevilmods/World-of-Magic-Starring-Mickey-Mouse",
+    "downloadUrl": "https://github.com/bigevilmods/World-of-Magic-Starring-Mickey-Mouse",
+    "onlineUrl": "",
+    "target": ""
+  },
+  {
     "name": "Streamit",
     "kind": "app",
     "plataforma": ["Windows"],
