@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-21T19:59:49.609284+00:00",
+  "generated_at": "2026-11-21T23:36:25.502614+00:00",
   "repositories": {
     "bigevilmods/bigevil-launcher": {
       "tag_name": "1.0",
@@ -60,6 +60,19 @@
         }
       ]
     },
-    "bigevilmods/world-of-magic-starring-mickey-mouse": null
+    "bigevilmods/world-of-magic-starring-mickey-mouse": {
+      "tag_name": "release",
+      "published_at": "2026-11-21T19:54:26Z",
+      "assets": [
+        {
+          "id": 776695883,
+          "name": "Windows.zip",
+          "state": "uploaded",
+          "size": 4542973,
+          "digest": "sha256:bfe362fc047d1d6f803839a1427113174e9acbaa6ce83eb2983e3b30a2eff677",
+          "browser_download_url": "https://github.com/bigevilmods/World-of-Magic-Starring-Mickey-Mouse/releases/download/release/Windows.zip"
+        }
+      ]
+    }
   }
 }
