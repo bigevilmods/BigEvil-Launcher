@@ -276,210 +276,378 @@ class _EntryDetailsState extends State<EntryDetails> {
   @override
   Widget build(BuildContext context) {
     final entry = _entry;
-    final game = entry.kind == Kind.game;
-    final online = Library.webUri(entry.onlineUrl);
+    final messages = context.messages;
     return Scaffold(
+      backgroundColor: const Color(0xff101116),
       appBar: AppBar(
-        title: Text(entry.name),
+        title: Text(messages.details),
+        backgroundColor: const Color(0xff16191f),
         actions: [
           if (widget.onEdit != null)
             IconButton(
-              tooltip: context.messages.editItem,
+              tooltip: messages.editItem,
               onPressed: _edit,
               icon: const Icon(Icons.edit_outlined),
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: LayoutBuilder(
+        builder: (context, bounds) {
+          final wide = bounds.maxWidth >= 840;
+          final description = _DetailPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  messages.description,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  entry.description.isEmpty
+                      ? messages.noDescription
+                      : entry.description,
+                  style: const TextStyle(
+                    color: dashboardMuted,
+                    fontSize: 15,
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          );
+          final hasActions =
+              entry.kind == Kind.game ||
+              entry.target.isNotEmpty ||
+              _canPlay ||
+              _installation != null ||
+              _release != null ||
+              Library.isWebLink(entry.onlineUrl) ||
+              Library.isWebLink(entry.repositoryUrl) ||
+              Library.webUri(entry.downloadUrl)?.scheme == 'https';
+          final actions = hasActions
+              ? _DetailPanel(child: _actions(entry))
+              : null;
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              wide ? 28 : 14,
+              20,
+              wide ? 28 : 14,
+              28,
+            ),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _DetailHero(entry: entry, wide: wide),
+                      const SizedBox(height: 16),
+                      if (actions == null)
+                        description
+                      else if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: description),
+                            const SizedBox(width: 16),
+                            SizedBox(width: 320, child: actions),
+                          ],
+                        )
+                      else ...[
+                        actions,
+                        const SizedBox(height: 16),
+                        description,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _actions(Entry entry) {
+    final messages = context.messages;
+    final game = entry.kind == Kind.game;
+    final online = Library.webUri(entry.onlineUrl);
+    final canDownload =
+        _repository != null ||
+        Library.webUri(entry.downloadUrl)?.scheme == 'https';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (canDownload && !_canPlay) ...[
+          _downloadButton(primary: true),
+          const SizedBox(height: 8),
+        ],
+        if (game || entry.target.isNotEmpty || _canPlay) ...[
+          FilledButton.icon(
+            onPressed: game && !_canPlay ? null : () => widget.onOpen(entry),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 42),
+              backgroundColor: const Color(0xff7952d7),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(9),
+              ),
+            ),
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text(game ? messages.play : messages.open),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (canDownload && _canPlay) ...[
+          _downloadButton(primary: false),
+          const SizedBox(height: 8),
+        ],
+        if (online != null) ...[
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    OnlineBrowser(title: entry.name, initialUrl: online),
+              ),
+            ),
+            icon: const Icon(Icons.language),
+            label: Text(game ? messages.playOnline : messages.openOnline),
+          ),
+        ],
+        if (_installation != null || _release != null) ...[
+          const SizedBox(height: 10),
+          _status(),
+        ],
+        if (Library.isWebLink(entry.repositoryUrl))
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openLink(entry.repositoryUrl),
+              icon: const Icon(Icons.code),
+              label: Text(messages.repository),
+            ),
+          ),
+        if (_downloading) ...[
+          const SizedBox(height: 12),
+          if (_installing) Text(messages.installingItem),
+          LinearProgressIndicator(
+            value: _installing ? null : _downloadProgress,
+          ),
+        ],
+        if (_downloadPath case final path?) ...[
+          const SizedBox(height: 12),
+          SelectableText(messages.itemInstalledPath(path)),
+        ],
+        if (_installerOpened) ...[
+          const SizedBox(height: 12),
+          Text(messages.itemInstallerOpened),
+        ],
+      ],
+    );
+  }
+
+  Widget _downloadButton({required bool primary}) {
+    final label = Text(context.messages.downloadAndInstall);
+    const icon = Icon(Icons.download_outlined);
+    final action = _downloading ? null : _downloadItem;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(9),
+    );
+    if (!primary) {
+      return OutlinedButton.icon(
+        onPressed: action,
+        icon: icon,
+        label: label,
+        style: OutlinedButton.styleFrom(
+          shape: shape,
+          minimumSize: const Size(0, 42),
+        ),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: _downloading ? null : dashboardGradient,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: FilledButton.icon(
+        onPressed: action,
+        icon: icon,
+        label: label,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(0, 46),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          shape: shape,
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailPanel extends StatelessWidget {
+  const _DetailPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: const Color(0xff191c23),
+      border: Border.all(color: dashboardBorder),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    padding: const EdgeInsets.all(18),
+    child: child,
+  );
+}
+
+class _DetailHero extends StatelessWidget {
+  const _DetailHero({required this.entry, required this.wide});
+
+  final Entry entry;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final game = entry.kind == Kind.game;
+    final background = entry.backgroundPath;
+    final backdrop = background != entry.coverPath ? background : null;
+    final artwork = Container(
+      width: wide ? 118 : 82,
+      height: wide ? (game ? 156 : 118) : (game ? 112 : 82),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xff232338),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: dashboardPurple.withAlpha(105)),
+      ),
+      child: _DetailImage(
+        path: entry.coverPath,
+        width: 384,
+        fit: game ? BoxFit.cover : BoxFit.contain,
+        fallback: Icon(
+          game ? Icons.sports_esports_outlined : Icons.apps_rounded,
+          color: dashboardPurple,
+          size: wide ? 54 : 38,
+        ),
+      ),
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xff191c23),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: dashboardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: _DetailImage(
-                            path: entry.backgroundPath ?? entry.coverPath,
-                            width: 1440,
-                            fallback: const DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Color(0xff225064),
-                                    Color(0xff3f2852),
-                                  ],
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(.9, -.9),
+                  radius: 1.55,
+                  colors: [Color(0xff373052), Color(0xff191c23)],
+                ),
+              ),
+            ),
+          ),
+          if (backdrop != null) ...[
+            Positioned.fill(
+              child: _DetailImage(
+                path: backdrop,
+                width: 1440,
+                fallback: const SizedBox.shrink(),
+              ),
+            ),
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: [
+                      Color(0x2410141c),
+                      Color(0xe012151e),
+                      Color(0xff191c23),
+                    ],
+                    stops: [0, .65, 1],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          Container(
+            constraints: BoxConstraints(minHeight: wide ? 250 : 175),
+            padding: EdgeInsets.all(wide ? 28 : 16),
+            alignment: Alignment.bottomLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                artwork,
+                SizedBox(width: wide ? 24 : 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        entry.name,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: wide ? 38 : 24,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                        ),
+                      ),
+                      if (entry.developer.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          entry.developer,
+                          style: const TextStyle(
+                            color: dashboardMuted,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                      if (entry.platforms.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final platform in entry.platforms)
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xff252334),
+                                  border: Border.all(color: dashboardBorder),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Color(0x2411141c), Color(0xf3161820)],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 62, 16, 18),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: SizedBox(
-                                  width: 104,
-                                  height: 132,
-                                  child: _DetailImage(
-                                    path: entry.coverPath,
-                                    width: 360,
-                                    fallback: ColoredBox(
-                                      color: const Color(0xff292d3b),
-                                      child: Icon(
-                                        game
-                                            ? Icons.sports_esports_outlined
-                                            : Icons.apps,
-                                        color: dashboardCyan,
-                                        size: 42,
-                                      ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
+                                  child: Text(
+                                    platform,
+                                    style: const TextStyle(
+                                      color: dashboardMuted,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      entry.name,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineMedium,
-                                    ),
-                                    if (entry.developer.isNotEmpty)
-                                      Text(
-                                        entry.developer,
-                                        style: const TextStyle(
-                                          color: dashboardMuted,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (entry.platforms.isNotEmpty) ...[
-                    Text(context.messages.platform),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        for (final platform in entry.platforms)
-                          Chip(label: Text(platform)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (_installation != null || _release != null) ...[
-                    _status(),
-                    const SizedBox(height: 12),
-                  ],
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      if (game || entry.target.isNotEmpty || _canPlay)
-                        FilledButton.icon(
-                          onPressed: game && !_canPlay
-                              ? null
-                              : () => widget.onOpen(entry),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: Text(
-                            game
-                                ? context.messages.play
-                                : context.messages.open,
-                          ),
-                        ),
-                      if (online != null)
-                        FilledButton.tonalIcon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => OnlineBrowser(
-                                title: entry.name,
-                                initialUrl: online,
-                              ),
-                            ),
-                          ),
-                          icon: const Icon(Icons.language),
-                          label: Text(
-                            game
-                                ? context.messages.playOnline
-                                : context.messages.openOnline,
-                          ),
-                        ),
-                      if (_repository != null ||
-                          Library.webUri(entry.downloadUrl)?.scheme == 'https')
-                        OutlinedButton.icon(
-                          onPressed: _downloading ? null : _downloadItem,
-                          icon: const Icon(Icons.download_outlined),
-                          label: Text(context.messages.downloadAndInstall),
-                        ),
-                      if (Library.isWebLink(entry.repositoryUrl))
-                        OutlinedButton.icon(
-                          onPressed: () => _openLink(entry.repositoryUrl),
-                          icon: const Icon(Icons.code),
-                          label: Text(context.messages.repository),
-                        ),
                     ],
                   ),
-                  if (_downloading) ...[
-                    const SizedBox(height: 12),
-                    if (_installing) Text(context.messages.installingItem),
-                    LinearProgressIndicator(
-                      value: _installing ? null : _downloadProgress,
-                    ),
-                  ],
-                  if (_downloadPath case final path?) ...[
-                    const SizedBox(height: 12),
-                    SelectableText(context.messages.itemInstalledPath(path)),
-                  ],
-                  if (_installerOpened) ...[
-                    const SizedBox(height: 12),
-                    Text(context.messages.itemInstallerOpened),
-                  ],
-                  const SizedBox(height: 24),
-                  Text(
-                    context.messages.description,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    entry.description.isEmpty
-                        ? context.messages.noDescription
-                        : entry.description,
-                    style: const TextStyle(color: dashboardMuted, height: 1.5),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -493,17 +661,19 @@ class _DetailImage extends StatelessWidget {
     required this.path,
     required this.width,
     required this.fallback,
+    this.fit = BoxFit.cover,
   });
 
   final String? path;
   final int width;
   final Widget fallback;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) => switch (path) {
     final path? => Image.network(
       path,
-      fit: BoxFit.cover,
+      fit: fit,
       cacheWidth: width,
       errorBuilder: (_, _, _) => fallback,
     ),

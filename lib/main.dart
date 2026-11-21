@@ -11,8 +11,8 @@ import 'library.dart';
 import 'localization.dart';
 import 'updates.dart';
 
-const ink = Color(0xff1b1c22);
-const panel = Color(0xff2a2c34);
+const ink = Color(0xff101116);
+const panel = Color(0xff1b1e27);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,7 +56,7 @@ class _BigEvilState extends State<BigEvil> {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: ink,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: dashboardCyan,
+        seedColor: dashboardPurple,
         brightness: Brightness.dark,
         surface: panel,
       ),
@@ -92,6 +92,7 @@ class _LauncherState extends State<Launcher> {
   List<Entry> _entries = [];
   final Set<Entry> _playableGames = {};
   String _query = '';
+  final _searchFocus = FocusNode();
   String _repository = '';
   Kind? _filter;
   String? _platformFilter;
@@ -157,6 +158,7 @@ class _LauncherState extends State<Launcher> {
 
   @override
   void dispose() {
+    _searchFocus.dispose();
     _timer?.cancel();
     _itemTimer?.cancel();
     _lifecycle.dispose();
@@ -408,26 +410,18 @@ class _LauncherState extends State<Launcher> {
         child: LayoutBuilder(
           builder: (context, bounds) {
             final desktop = bounds.maxWidth >= 760;
+            final sideBySide = bounds.maxWidth >= 1050 && _filter == null;
             final toolbarProgress = bounds.maxWidth >= 1080 ? _progress : null;
             final navigation = DashboardNavigation(
               desktop: desktop,
               selected: _filter,
               onSelect: (kind) => setState(() => _filter = kind),
               onSettings: settings,
+              onSearch: _searchFocus.requestFocus,
             );
             final dashboard = Expanded(
               child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xff20282e),
-                      Color(0xff1b1c22),
-                      Color(0xff24212c),
-                    ],
-                  ),
-                ),
+                decoration: const BoxDecoration(color: ink),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -444,15 +438,22 @@ class _LauncherState extends State<Launcher> {
                           ],
                           Row(
                             children: [
+                              if (desktop) ...[
+                                const DashboardBrand(),
+                                const SizedBox(width: 26),
+                              ],
                               Flexible(
                                 fit: FlexFit.tight,
                                 child: Align(
-                                  alignment: Alignment.centerLeft,
+                                  alignment: desktop
+                                      ? Alignment.center
+                                      : Alignment.centerLeft,
                                   child: ConstrainedBox(
                                     constraints: const BoxConstraints(
                                       maxWidth: 520,
                                     ),
                                     child: TextField(
+                                      focusNode: _searchFocus,
                                       onChanged: (value) =>
                                           setState(() => _query = value),
                                       decoration: InputDecoration(
@@ -600,27 +601,34 @@ class _LauncherState extends State<Launcher> {
                               ),
                             )
                           else
-                            for (final kind in Kind.values)
-                              if (_filter == null || _filter == kind)
-                                Padding(
-                                  key: ValueKey(kind),
-                                  padding: const EdgeInsets.only(bottom: 18),
-                                  child: DashboardGallery(
-                                    kind: kind,
-                                    entries: matches
-                                        .where((entry) => entry.kind == kind)
-                                        .toList(growable: false),
-                                    hasSearch:
-                                        _query.trim().isNotEmpty ||
-                                        _platformFilter != null,
-                                    onOpen: _open,
-                                    canPlay: _playableGames.contains,
-                                    onDetails: _showDetails,
-                                  ),
-                                ),
+                            _libraryPanels(
+                              matches,
+                              sideBySide: sideBySide,
+                              panelHeight: bounds.maxHeight,
+                            ),
                         ],
                       ),
                     ),
+                    if (desktop)
+                      Container(
+                        alignment: Alignment.centerRight,
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: dashboardBorder),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 7,
+                        ),
+                        child: Text(
+                          context.messages.versionLabel(currentVersion),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: dashboardMuted,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -630,6 +638,46 @@ class _LauncherState extends State<Launcher> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _libraryPanels(
+    List<Entry> matches, {
+    required bool sideBySide,
+    required double panelHeight,
+  }) {
+    final panels = [
+      for (final kind in Kind.values)
+        if (_filter == null || _filter == kind)
+          DashboardGallery(
+            key: ValueKey(kind),
+            kind: kind,
+            minHeight: sideBySide ? (panelHeight - 148).clamp(0, 650) : 0,
+            entries: matches
+                .where((entry) => entry.kind == kind)
+                .toList(growable: false),
+            hasSearch: _query.trim().isNotEmpty || _platformFilter != null,
+            onOpen: _open,
+            canPlay: _playableGames.contains,
+            onDetails: _showDetails,
+          ),
+    ];
+    if (sideBySide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: panels.first),
+          const SizedBox(width: 16),
+          Expanded(child: panels.last),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final panel in panels)
+          Padding(padding: const EdgeInsets.only(bottom: 16), child: panel),
+      ],
     );
   }
 }

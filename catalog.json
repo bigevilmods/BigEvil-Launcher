@@ -3,7 +3,7 @@
     "name": "Final Fantasy NSE Recomp",
     "kind": "game",
     "plataforma": ["Windows"],
-    "description": "A short description of the game.",
+    "description": "Static Recomp for Final Fantasy from NES",
     "developer": "BigEvil",
     "coverPath": "https://storage.googleapis.com/images.pricecharting.com/3db45971776469b27665d50acb7696c222d4eac9ae587aef630cec42c7492be5/1600.jpg",
     "backgroundPath": "https://shrines.rpgclassics.com/nes/ff1/walkthrough/start/1.1.jpg",

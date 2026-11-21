@@ -349,6 +349,8 @@ export BIGEVIL_GITHUB_TOKEN = "test_token_123" # comment'''),
   testWidgets('details gate local play and require an online URL', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(1260, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final entry = Entry(
       'Corrida',
       '/games/race',
@@ -388,6 +390,19 @@ export BIGEVIL_GITHUB_TOKEN = "test_token_123" # comment'''),
     final play = find.widgetWithText(FilledButton, 'Jogar');
     expect(tester.widget<FilledButton>(play).onPressed, isNull);
     expect(opened, isNull);
+    final description = find.text('Descrição');
+    final download = find.text('Baixar e instalar');
+    expect(
+      tester.getCenter(download).dx,
+      greaterThan(tester.getCenter(description).dx),
+    );
+    await tester.binding.setSurfaceSize(const Size(360, 720));
+    await tester.pump();
+    expect(
+      tester.getCenter(description).dy,
+      greaterThan(tester.getCenter(download).dy),
+    );
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(
       details(Entry('Corrida', '/games/race', Kind.game)),
     );
@@ -535,12 +550,14 @@ export BIGEVIL_GITHUB_TOKEN = "test_token_123" # comment'''),
                 onSettings: null,
               ),
               Expanded(
-                child: DashboardGallery(
-                  kind: Kind.game,
-                  entries: entries,
-                  hasSearch: false,
-                  onOpen: (entry) => opened = entry,
-                  canPlay: (entry) => entry == entries.first,
+                child: SingleChildScrollView(
+                  child: DashboardGallery(
+                    kind: Kind.game,
+                    entries: entries,
+                    hasSearch: false,
+                    onOpen: (entry) => opened = entry,
+                    canPlay: (entry) => entry == entries.first,
+                  ),
                 ),
               ),
             ],
@@ -554,10 +571,12 @@ export BIGEVIL_GITHUB_TOKEN = "test_token_123" # comment'''),
     expect(tester.widget<TextButton>(playButtons.at(1)).onPressed, isNull);
     await tester.tap(find.text('Jogar').first);
     expect(opened, same(entries.first));
-    final gallery = tester.state<ScrollableState>(find.byType(Scrollable));
-    await tester.tap(find.byTooltip('Avançar na galeria'));
-    await tester.pumpAndSettle();
-    expect(gallery.position.pixels, greaterThan(0));
+    final first = tester.getTopLeft(find.byType(DashboardCard).at(0));
+    final second = tester.getTopLeft(find.byType(DashboardCard).at(1));
+    final fourth = tester.getTopLeft(find.byType(DashboardCard).at(3));
+    expect(second.dy, first.dy);
+    expect(second.dx, greaterThan(first.dx));
+    expect(fourth.dy, greaterThan(first.dy));
     expect(tester.takeException(), isNull);
   });
 }

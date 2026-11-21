@@ -1,16 +1,14 @@
-import 'dart:ui' show PointerDeviceKind;
-
 import 'package:material_ui/material_ui.dart';
 
 import 'entry.dart';
 import 'localization.dart';
 
 const dashboardCyan = Color(0xff65d6fb);
-const dashboardPurple = Color(0xffc38af8);
+const dashboardPurple = Color(0xffb47bff);
 const dashboardMuted = Color(0xffb4b8c2);
-const dashboardBorder = Color(0xff3d414d);
+const dashboardBorder = Color(0xff383d49);
 const dashboardGradient = LinearGradient(
-  colors: [dashboardCyan, Color(0xff82a2f4), dashboardPurple],
+  colors: [Color(0xff6558ea), Color(0xffa645dd)],
 );
 
 class DashboardNavigation extends StatelessWidget {
@@ -20,12 +18,14 @@ class DashboardNavigation extends StatelessWidget {
     required this.onSelect,
     required this.onSettings,
     required this.desktop,
+    this.onSearch,
   });
 
   final Kind? selected;
   final ValueChanged<Kind?> onSelect;
   final VoidCallback? onSettings;
   final bool desktop;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -49,35 +49,48 @@ class DashboardNavigation extends StatelessWidget {
       );
     }
     return Container(
-      width: 199,
+      width: 98,
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xff26292e), Color(0xff202126)],
-        ),
-        border: Border(right: BorderSide(color: dashboardBorder)),
+        color: Color(0xff16191f),
+        border: Border(right: BorderSide(color: Color(0xff242832))),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(22, 38, 14, 36),
-            child: DashboardBrand(),
+      padding: const EdgeInsets.fromLTRB(7, 76, 7, 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xff171c26), Color(0xff11171d)],
           ),
-          for (final (kind, icon, label) in destinations)
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xff3c606b)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x303caac6), blurRadius: 12),
+          ],
+        ),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          children: [
+            if (onSearch != null)
+              _NavigationTile(
+                label: MaterialLocalizations.of(context).searchFieldLabel,
+                icon: Icons.search,
+                onTap: onSearch,
+              ),
+            for (final (kind, icon, label) in destinations)
+              _NavigationTile(
+                label: kind == Kind.game ? context.messages.games : label,
+                icon: icon,
+                active: selected == kind,
+                onTap: () => onSelect(kind),
+              ),
             _NavigationTile(
-              label: label,
-              icon: icon,
-              active: selected == kind,
-              onTap: () => onSelect(kind),
+              label: context.messages.settings,
+              icon: Icons.settings_outlined,
+              onTap: onSettings,
             ),
-          _NavigationTile(
-            label: context.messages.settings,
-            icon: Icons.settings_outlined,
-            onTap: onSettings,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -124,45 +137,63 @@ class _NavigationTile extends StatelessWidget {
   final bool active;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(13, 0, 10, 7),
-    child: Material(
-      color: active ? const Color(0xff383e46) : Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: active ? dashboardCyan : dashboardMuted,
-                shadows: active
-                    ? const [Shadow(color: dashboardCyan, blurRadius: 14)]
-                    : null,
-                size: 23,
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: active ? Colors.white : dashboardMuted,
-                  ),
+  Widget build(BuildContext context) => Material(
+    color: active ? const Color(0xff282138) : Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          if (active)
+            Positioned(
+              top: 8,
+              bottom: 8,
+              left: 0,
+              child: Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: dashboardPurple,
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: const [
+                    BoxShadow(color: dashboardPurple, blurRadius: 10),
+                  ],
                 ),
               ),
-            ],
+            ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 13),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 23,
+                    color: active ? dashboardPurple : dashboardMuted,
+                    shadows: active
+                        ? const [Shadow(color: dashboardPurple, blurRadius: 12)]
+                        : null,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: active ? dashboardPurple : dashboardMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     ),
   );
 }
 
-class DashboardGallery extends StatefulWidget {
+class DashboardGallery extends StatelessWidget {
   const DashboardGallery({
     super.key,
     required this.kind,
@@ -174,6 +205,7 @@ class DashboardGallery extends StatefulWidget {
     this.onAdd,
     this.onEdit,
     this.onRemove,
+    this.minHeight = 0,
   });
 
   final Kind kind;
@@ -185,153 +217,99 @@ class DashboardGallery extends StatefulWidget {
   final VoidCallback? onAdd;
   final ValueChanged<Entry>? onEdit;
   final ValueChanged<Entry>? onRemove;
-
-  @override
-  State<DashboardGallery> createState() => _DashboardGalleryState();
-}
-
-class _DashboardGalleryState extends State<DashboardGallery> {
-  final _scroll = ScrollController();
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _move(double offset) {
-    if (!_scroll.hasClients) return;
-    final target = (_scroll.offset + offset).clamp(
-      0.0,
-      _scroll.position.maxScrollExtent,
-    );
-    _scroll.animateTo(
-      target,
-      duration: const Duration(milliseconds: 210),
-      curve: Curves.easeOutCubic,
-    );
-  }
+  final double minHeight;
 
   @override
   Widget build(BuildContext context) {
-    final games = widget.kind == Kind.game;
-    return DecoratedBox(
+    final games = kind == Kind.game;
+    return Container(
+      constraints: BoxConstraints(minHeight: minHeight),
       decoration: BoxDecoration(
-        gradient: dashboardGradient,
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: const [
-          BoxShadow(color: Color(0x2854cbff), blurRadius: 19),
-          BoxShadow(
-            color: Color(0x206f2eac),
-            blurRadius: 25,
-            offset: Offset(6, 6),
-          ),
-        ],
+        color: const Color(0xff191c23),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: dashboardBorder),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(1.5),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15.5),
-            gradient: const LinearGradient(
-              colors: [Color(0xff23343b), Color(0xff302e41), Color(0xff302739)],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            child: LayoutBuilder(
-              builder: (context, bounds) {
-                final width = (bounds.maxWidth * (games ? .31 : .232))
-                    .clamp(games ? 234.0 : 196.0, games ? 352.0 : 270.0)
-                    .clamp(0.0, bounds.maxWidth);
-                final scrolls =
-                    widget.entries.length * (width + 14) - 14 > bounds.maxWidth;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            final columns = bounds.maxWidth >= 460
+                ? 3
+                : bounds.maxWidth >= 255
+                ? 2
+                : 1;
+            const gap = 14.0;
+            final width = (bounds.maxWidth - (columns - 1) * gap) / columns;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            games
-                                ? context.messages.gameLibrary.toUpperCase()
-                                : context.messages.creationProductivity
-                                      .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .3,
-                            ),
-                          ),
-                        ),
-                        if (scrolls) ...[
-                          IconButton(
-                            tooltip: context.messages.galleryBack,
-                            onPressed: () => _move(-width - 14),
-                            icon: const Icon(Icons.chevron_left),
-                          ),
-                          IconButton(
-                            tooltip: context.messages.galleryForward,
-                            onPressed: () => _move(width + 14),
-                            icon: const Icon(Icons.chevron_right),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    if (widget.entries.isEmpty)
-                      _GalleryEmpty(
-                        games: games,
-                        hasSearch: widget.hasSearch,
-                        onAdd: widget.onAdd,
-                      )
-                    else
-                      SizedBox(
-                        height: games ? 225 : 226,
-                        child: ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            scrollbars: false,
-                            dragDevices: const {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: ListView.separated(
-                            controller: _scroll,
-                            scrollDirection: Axis.horizontal,
-                            itemCount: widget.entries.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 14),
-                            itemBuilder: (context, index) {
-                              final entry = widget.entries[index];
-                              return SizedBox(
-                                width: width,
-                                child: DashboardCard(
-                                  entry: entry,
-                                  onOpen: () => widget.onOpen(entry),
-                                  canPlay: widget.canPlay?.call(entry) ?? false,
-                                  onDetails: widget.onDetails == null
-                                      ? null
-                                      : () => widget.onDetails!(entry),
-                                  onEdit: widget.onEdit == null
-                                      ? null
-                                      : () => widget.onEdit!(entry),
-                                  onRemove: widget.onRemove == null
-                                      ? null
-                                      : () => widget.onRemove!(entry),
-                                ),
-                              );
-                            },
-                          ),
+                    Expanded(
+                      child: Text(
+                        (games
+                                ? context.messages.gameLibrary
+                                : context.messages.creationProductivity)
+                            .toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xff272b35),
+                        border: Border.all(color: dashboardBorder),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        child: Text('${entries.length}'),
+                      ),
+                    ),
                   ],
-                );
-              },
-            ),
-          ),
+                ),
+                const SizedBox(height: 15),
+                if (entries.isEmpty)
+                  _GalleryEmpty(
+                    games: games,
+                    hasSearch: hasSearch,
+                    onAdd: onAdd,
+                  )
+                else
+                  Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final entry in entries)
+                        SizedBox(
+                          width: width,
+                          height: 248,
+                          child: DashboardCard(
+                            entry: entry,
+                            onOpen: () => onOpen(entry),
+                            canPlay: canPlay?.call(entry) ?? false,
+                            onDetails: onDetails == null
+                                ? null
+                                : () => onDetails!(entry),
+                            onEdit: onEdit == null
+                                ? null
+                                : () => onEdit!(entry),
+                            onRemove: onRemove == null
+                                ? null
+                                : () => onRemove!(entry),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -441,10 +419,10 @@ class DashboardCard extends StatelessWidget {
     final hasTarget = entry.target.isNotEmpty;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xff202329),
+        color: const Color(0xff151820),
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: games ? dashboardBorder : accent.withAlpha(155),
+          color: games ? dashboardBorder : accent.withAlpha(75),
         ),
       ),
       child: Padding(
@@ -460,13 +438,47 @@ class DashboardCard extends StatelessWidget {
                   children: [
                     if (cover == null)
                       fallback
-                    else
+                    else if (games)
                       Image.network(
                         cover,
                         fit: BoxFit.cover,
                         cacheWidth: 720,
                         errorBuilder: (_, _, _) => fallback,
+                      )
+                    else ...[
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [deep, const Color(0xff151820)],
+                          ),
+                        ),
                       ),
+                      Center(
+                        child: SizedBox.square(
+                          dimension: 84,
+                          child: Image.network(
+                            cover,
+                            fit: BoxFit.contain,
+                            cacheWidth: 180,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.apps_rounded,
+                              color: accent,
+                              size: 66,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xff151820)],
+                          stops: [.64, 1],
+                        ),
+                      ),
+                    ),
                     if (onDetails != null)
                       Positioned.fill(
                         child: Material(
@@ -513,90 +525,73 @@ class DashboardCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(11, 8, 10, 8),
-                color: const Color(0xff21242a),
-                child: Row(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            entry.name.toUpperCase(),
-                            maxLines: games ? 2 : 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          if (entry.platforms.isNotEmpty)
-                            Tooltip(
-                              message: entry.platforms.join(' · '),
-                              child: Text(
-                                entry.platforms.join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: dashboardMuted,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          if (!games && hasTarget)
-                            Tooltip(
-                              message: entry.target,
-                              child: Text(
-                                entry.target,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: dashboardMuted,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                        ],
+                    Text(
+                      entry.name.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    if (!hasTarget && !canPlay)
-                      TextButton(
-                        onPressed: onDetails,
-                        child: Text(context.messages.details),
-                      )
-                    else if (games)
-                      Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        clipBehavior: Clip.antiAlias,
-                        child: Ink(
-                          decoration: const BoxDecoration(
-                            gradient: dashboardGradient,
-                          ),
-                          child: TextButton(
-                            onPressed: canPlay ? onOpen : null,
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xff101824),
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                            ),
-                            child: Text(context.messages.play),
+                    if (entry.platforms.isNotEmpty)
+                      Tooltip(
+                        message: entry.platforms.join(' · '),
+                        child: Text(
+                          entry.platforms.join(' · '),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: dashboardMuted,
+                            fontSize: 11,
                           ),
                         ),
-                      )
-                    else
-                      TextButton(
-                        onPressed: onOpen,
-                        style: TextButton.styleFrom(foregroundColor: accent),
-                        child: Text('${context.messages.open} ›'),
                       ),
+                    const SizedBox(height: 8),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xff222630),
+                        gradient: games && canPlay ? dashboardGradient : null,
+                        border: Border.all(color: dashboardBorder),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextButton(
+                        onPressed: !hasTarget && !canPlay
+                            ? onDetails
+                            : (!games || canPlay ? onOpen : null),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 35),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        child: Text(
+                          !hasTarget && !canPlay
+                              ? context.messages.details
+                              : games
+                              ? context.messages.play
+                              : context.messages.open,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
