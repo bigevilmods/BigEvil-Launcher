@@ -22,9 +22,6 @@ class OnlineBrowser extends StatefulWidget {
 }
 
 class _OnlineBrowserState extends State<OnlineBrowser> {
-  late final _address = TextEditingController(
-    text: widget.initialUrl.toString(),
-  );
   WebViewController? _controller;
   WebViewSession? _session;
   int _progress = 0;
@@ -40,7 +37,6 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
   @override
   void dispose() {
     unawaited(_closeSession());
-    _address.dispose();
     super.dispose();
   }
 
@@ -91,17 +87,15 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
           onProgress: (value) {
             if (mounted) setState(() => _progress = value);
           },
-          onPageStarted: (url) {
+          onPageStarted: (_) {
             if (!mounted) return;
-            _address.text = url;
             setState(() {
               _progress = 0;
               _ready = false;
             });
           },
-          onPageFinished: (url) {
+          onPageFinished: (_) {
             if (!mounted) return;
-            _address.text = url;
             setState(() {
               _ready = true;
               _progress = 100;
@@ -114,21 +108,10 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
       );
       if (!mounted) return;
       setState(() => _controller = controller);
-      await _go(widget.initialUrl.toString());
+      await controller.loadRequest(widget.initialUrl);
     } catch (error) {
       _report(error);
     }
-  }
-
-  Future<void> _go(String text) async {
-    final url = Library.webUri(text.trim());
-    if (url == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.messages.webAddressHelp)));
-      return;
-    }
-    await _navigate((controller) => controller.loadRequest(url));
   }
 
   Future<void> _navigate(
@@ -259,19 +242,6 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
                         : null,
                     icon: const Icon(Icons.refresh),
                   ),
-                  Expanded(
-                    child: TextField(
-                      controller: _address,
-                      enabled: enabled,
-                      keyboardType: TextInputType.url,
-                      textInputAction: TextInputAction.go,
-                      onSubmitted: _go,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: context.messages.address,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -288,7 +258,9 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
                 ),
                 actions: [
                   TextButton(
-                    onPressed: enabled ? () => _go(_address.text) : _start,
+                    onPressed: enabled
+                        ? () => _navigate((view) => view.reload())
+                        : _start,
                     child: Text(context.messages.retry),
                   ),
                 ],
