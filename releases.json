@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-21T19:52:05.471721+00:00",
+  "generated_at": "2026-11-21T19:59:49.609284+00:00",
   "repositories": {
     "bigevilmods/bigevil-launcher": {
       "tag_name": "1.0",
@@ -59,6 +59,7 @@
           "browser_download_url": "https://github.com/bigevilmods/Streamit/releases/download/release/win-portable.zip"
         }
       ]
-    }
+    },
+    "bigevilmods/world-of-magic-starring-mickey-mouse": null
   }
 }
