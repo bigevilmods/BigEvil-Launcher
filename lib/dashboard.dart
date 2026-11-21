@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:material_ui/material_ui.dart';
@@ -457,8 +456,8 @@ class DashboardCard extends StatelessWidget {
                     if (cover == null)
                       fallback
                     else
-                      Image.file(
-                        File(cover),
+                      Image.network(
+                        cover,
                         fit: BoxFit.cover,
                         cacheWidth: 720,
                         errorBuilder: (_, _, _) => fallback,

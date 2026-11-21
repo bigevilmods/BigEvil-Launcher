@@ -96,6 +96,30 @@ void main() {
     expect(Updater.resolveRepository('owner/fork'), 'owner/fork');
   });
 
+  test('catalog accepts remote items and rejects local paths', () {
+    final entries = Library.parseCatalog('''
+      [
+        {
+          "name": "Corrida",
+          "kind": "game",
+          "coverPath": "https://example.org/cover.webp",
+          "onlineUrl": "https://example.org/play"
+        },
+        {"name": "Editor", "kind": "app"}
+      ]
+    ''');
+    expect(entries.map((entry) => entry.kind), [Kind.game, Kind.app]);
+    expect(entries.first.target, isEmpty);
+    expect(entries.first.coverPath, 'https://example.org/cover.webp');
+    expect(Library.parseCatalog('[]'), isEmpty);
+    expect(
+      () => Library.parseCatalog(
+        '[{"name":"Corrida","kind":"game","target":"file:///race.exe"}]',
+      ),
+      throwsFormatException,
+    );
+  });
+
   test('release selection ignores old and prerelease builds', () {
     expect(isNewer('v1.10.0', '1.9.9'), isTrue);
     expect(isNewer('v1.0.0', '1.0.0'), isFalse);
@@ -187,9 +211,7 @@ void main() {
     );
   });
 
-  testWidgets('responsive library and editor fit a small viewport', (
-    tester,
-  ) async {
+  testWidgets('responsive library fits a small viewport', (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -209,15 +231,6 @@ void main() {
                 hasSearch: false,
                 onOpen: (_) {},
               ),
-              Builder(
-                builder: (context) => TextButton(
-                  onPressed: () => showDialog<Entry>(
-                    context: context,
-                    builder: (_) => const EntryEditor(),
-                  ),
-                  child: const Text('Novo'),
-                ),
-              ),
             ],
           ),
         ),
@@ -225,11 +238,6 @@ void main() {
     );
     expect(find.text('BIBLIOTECA DE JOGOS'), findsOneWidget);
     expect(find.text('CORRIDA'), findsOneWidget);
-    await tester.tap(find.text('Novo'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Salvar'));
-    await tester.pumpAndSettle();
-    expect(find.text('Informe um nome.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

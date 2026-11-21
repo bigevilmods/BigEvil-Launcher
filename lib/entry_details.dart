@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:material_ui/material_ui.dart';
 
 import 'dashboard.dart';
@@ -242,8 +240,8 @@ class _DetailImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (path) {
-    final path? => Image.file(
-      File(path),
+    final path? => Image.network(
+      path,
       fit: BoxFit.cover,
       cacheWidth: width,
       errorBuilder: (_, _, _) => fallback,

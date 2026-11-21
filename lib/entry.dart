@@ -28,7 +28,7 @@ class Entry {
 
   factory Entry.fromJson(Map<String, dynamic> json) => Entry(
     json['name'] as String,
-    json['target'] as String,
+    json['target'] as String? ?? '',
     Kind.values.byName(json['kind'] as String),
     coverPath: json['coverPath'] as String?,
     backgroundPath: json['backgroundPath'] as String?,

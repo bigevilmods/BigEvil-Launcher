@@ -1,0 +1,14 @@
+[
+    {
+    "name": "Example game",
+    "kind": "game",
+    "description": "A short description of the game.",
+    "developer": "Example Studio",
+    "coverPath": "https://example.com/cover.webp",
+    "backgroundPath": "https://example.com/background.webp",
+    "repositoryUrl": "https://example.com/source",
+    "downloadUrl": "https://example.com/download",
+    "onlineUrl": "https://example.com/play",
+    "target": "https://example.com/home"
+  }
+]

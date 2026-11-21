@@ -1,18 +1,41 @@
 # BigEvil Launcher
 
-BigEvil Launcher is a local game and app library with an adaptive interface in Brazilian Portuguese, English, and Spanish. The home screen has two horizontal galleries and navigation by category. Search finds items by name or target. In the item editor, you can import a local PNG, JPEG, or WebP cover.
+BigEvil Launcher displays a shared catalog of games and apps with an adaptive interface in Brazilian Portuguese, English, and Spanish. The home screen has two horizontal galleries and navigation by category. Search finds items by name, target URL, or developer.
 
 Use the language picker in the top bar to switch between Brazilian Portuguese, English, and Spanish without restarting. The launcher saves your choice on this device. **System language** follows your system settings and uses Brazilian Portuguese when your language is outside the supported list. Library entries and website content are displayed in their original language.
 
-Select an item's cover to open its details page. The editor lets you set the cover image, background image, description, developer, repository URL, download URL, and URL of the online version. The local target is optional. **Download** opens the URL in your default browser. **Play online** opens the web version inside the launcher.
+Select an item's cover to open its details page. **Download** opens the URL in your default browser. **Play online** opens the web version inside the launcher.
 
 The built-in browser uses Android System WebView, Microsoft Edge WebView2 on Windows, and WebKitGTK 4.1 on Linux. The launcher starts a browser session when you open an online item and closes it when you return to the library. Use HTTPS on Android. The compatibility button checks WebAssembly, WebGL, WebGL 2, Canvas 2D, Web Audio, and optional features on the current page. Availability depends on the browser engine version, the device's graphics support, and the page's policies.
 
 | Platform | Supported targets | Distribution |
 | --- | --- | --- |
-| Windows x64 | Executables, `.lnk` shortcuts, and HTTP(S) links | Per-user Inno Setup installer |
-| Linux x64 | Executables, `.desktop` entries via GIO, and HTTP(S) links | Debian/Ubuntu package |
-| Android | Installed apps with a launcher activity and HTTP(S) links | Signed universal APK |
+| Windows x64 | HTTP(S) links | Per-user Inno Setup installer |
+| Linux x64 | HTTP(S) links | Debian/Ubuntu package |
+| Android | HTTP(S) links | Signed universal APK |
+
+## Item catalog
+
+The launcher reads [catalog.json](catalog.json) from the official repository's `main` branch at startup. Publish changes to that branch to update the shared catalog without rebuilding the launcher. The catalog starts empty. Add one object per item to the JSON array:
+
+```json
+[
+  {
+    "name": "Example game",
+    "kind": "game",
+    "description": "A short description of the game.",
+    "developer": "Example Studio",
+    "coverPath": "https://example.com/cover.webp",
+    "backgroundPath": "https://example.com/background.webp",
+    "repositoryUrl": "https://example.com/source",
+    "downloadUrl": "https://example.com/download",
+    "onlineUrl": "https://example.com/play",
+    "target": "https://example.com/home"
+  }
+]
+```
+
+`name` and `kind` are required. Use `game` or `app` for `kind`. The other fields are optional. Use public HTTPS URLs for images and links.
 
 ## Build and test
 
@@ -50,4 +73,4 @@ When testing version 1.0.0 on Windows x64, the microbenchmark compiled with `dar
 
 The launcher checks the repository for a stable release at startup and every six hours while it is open. When it finds a newer version, it automatically downloads the package for your platform and verifies its size and the SHA-256 checksum provided by GitHub. **Install** opens the system installer. On Android, the system may ask you to allow installation from this source. On Linux, open the DEB in your distribution's package manager. If no graphical package manager is associated with DEB files, the launcher displays the package path so you can run `sudo apt install /path/to/BigEvil-Launcher-linux-x64.deb`.
 
-Updates preserve the library in the user data directory. The launcher stores your data locally and contacts GitHub to check for updates.
+The launcher stores device preferences locally and contacts GitHub for the shared catalog and release updates.

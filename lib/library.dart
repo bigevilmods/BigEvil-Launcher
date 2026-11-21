@@ -1,11 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
+import 'dart:typed_data' show BytesBuilder;
 
-import 'package:crypto/crypto.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'entry.dart';
@@ -14,71 +11,64 @@ export 'entry.dart';
 
 class Library {
   static const android = MethodChannel('bigevil/android');
-  static Future<File> _file() async =>
-      File('${(await getApplicationSupportDirectory()).path}/library.json');
-
-  static Future<String> importCover(XFile source) async {
-    const limit = 8 * 1024 * 1024;
-    if (await source.length() > limit) {
-      throw LocalizedFailure((messages) => messages.imageSizeLimit);
-    }
-    final bytes = await source.readAsBytes();
-    if (bytes.length > limit) {
-      throw LocalizedFailure((messages) => messages.imageSizeLimit);
-    }
-    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-    try {
-      final image = await ui.ImageDescriptor.encoded(buffer);
-      try {
-        if (image.width > 4096 || image.height > 4096) {
-          throw LocalizedFailure((messages) => messages.imageDimensions);
-        }
-      } finally {
-        image.dispose();
-      }
-    } finally {
-      buffer.dispose();
-    }
-    final directory = Directory('${(await _file()).parent.path}/covers');
-    await directory.create(recursive: true);
-    final file = File('${directory.path}/${sha256.convert(bytes)}.img');
-    if (!await file.exists()) await file.writeAsBytes(bytes, flush: true);
-    return file.path;
-  }
+  static final catalogUri = Uri.https(
+    'raw.githubusercontent.com',
+    '/bigevilmods/BigEvil-Launcher/main/catalog.json',
+  );
 
   static Future<List<Entry>> load() async {
-    final file = await _file();
-    if (!await file.exists()) return [];
-    final data = jsonDecode(await file.readAsString()) as List<dynamic>;
-    return data
-        .map((item) => Entry.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  static Future<void> save(List<Entry> entries) async {
-    final file = await _file();
-    await file.parent.create(recursive: true);
-    final temporary = await file.parent.createTemp('.library-');
+    const timeout = Duration(seconds: 15);
+    const maximumBytes = 2 * 1024 * 1024;
+    final client = HttpClient()..connectionTimeout = timeout;
     try {
-      final staged = File('${temporary.path}/library.json');
-      await staged.writeAsString(jsonEncode(entries), flush: true);
-      await staged.rename(file.path);
+      final request = await client.getUrl(catalogUri);
+      request.followRedirects = false;
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final response = await request.close().timeout(timeout);
+      if (response.statusCode != HttpStatus.ok) {
+        throw HttpException('HTTP ${response.statusCode}', uri: catalogUri);
+      }
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(timeout)) {
+        if (body.length + chunk.length > maximumBytes) {
+          throw const FormatException('Catalog exceeds 2 MiB');
+        }
+        body.add(chunk);
+      }
+      return parseCatalog(utf8.decode(body.takeBytes()));
     } finally {
-      await temporary.delete(recursive: true);
+      client.close(force: true);
     }
   }
 
-  static Future<List<Entry>> installedAndroidApps() async {
-    final items = await android.invokeListMethod<Map<Object?, Object?>>('apps');
-    return (items ?? [])
-        .map(
-          (item) => Entry(
-            item['name'] as String,
-            item['package'] as String,
-            Kind.app,
-          ),
-        )
-        .toList();
+  static List<Entry> parseCatalog(String source) {
+    final data = jsonDecode(source);
+    if (data is! List) {
+      throw const FormatException('Expected a list of catalog entries');
+    }
+    return [
+      for (final item in data)
+        if (item is Map<String, dynamic>)
+          _catalogEntry(Entry.fromJson(item))
+        else
+          throw const FormatException('Expected a catalog entry object'),
+    ];
+  }
+
+  static Entry _catalogEntry(Entry entry) {
+    for (final address in [
+      entry.target,
+      entry.coverPath,
+      entry.backgroundPath,
+      entry.repositoryUrl,
+      entry.downloadUrl,
+      entry.onlineUrl,
+    ]) {
+      if (address != null && address.isNotEmpty && !isWebLink(address)) {
+        throw const FormatException('Catalog links must use HTTP or HTTPS');
+      }
+    }
+    return entry;
   }
 
   static bool isWebLink(String value) => webUri(value) != null;
@@ -102,41 +92,5 @@ class Library {
     }
   }
 
-  static Future<void> open(Entry entry) async {
-    final target = entry.target;
-    if (isWebLink(target)) {
-      await openWebLink(target);
-      return;
-    }
-    if (Platform.isAndroid) {
-      await android.invokeMethod<void>('launch', target);
-      return;
-    }
-    if (!await File(target).exists()) {
-      throw LocalizedFailure((messages) => messages.missingFile);
-    }
-    if (Platform.isLinux && target.endsWith('.desktop')) {
-      final result = await Process.run('gio', [
-        'launch',
-        File(target).absolute.path,
-      ]);
-      if (result.exitCode == 0) return;
-      throw LocalizedFailure((messages) => messages.shortcutError);
-    }
-    if (Platform.isWindows && target.toLowerCase().endsWith('.lnk')) {
-      if (await launchUrl(
-        Uri.file(target),
-        mode: LaunchMode.externalApplication,
-      ))
-        return;
-      throw LocalizedFailure((messages) => messages.shortcutError);
-    }
-    final file = File(target).absolute;
-    await Process.start(
-      file.path,
-      [],
-      workingDirectory: file.parent.path,
-      mode: ProcessStartMode.detached,
-    );
-  }
+  static Future<void> open(Entry entry) => openWebLink(entry.target);
 }
