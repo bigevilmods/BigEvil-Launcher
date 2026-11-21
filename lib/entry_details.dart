@@ -1,9 +1,11 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'dashboard.dart';
+import 'entry_status.dart';
 import 'library.dart';
 import 'localization.dart';
 import 'online_browser.dart';
+import 'updates.dart';
 
 class EntryDetails extends StatefulWidget {
   const EntryDetails({
@@ -23,10 +25,112 @@ class EntryDetails extends StatefulWidget {
 
 class _EntryDetailsState extends State<EntryDetails> {
   late Entry _entry = widget.entry;
+  late final AppLifecycleListener _lifecycle;
+  Future<String?>? _installation;
+  Future<String?>? _release;
+  String? _repository;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+    _lifecycle = AppLifecycleListener(onResume: () => setState(_checkStatus));
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  void _checkStatus() {
+    _installation = EntryStatus.hasInstallationId(_entry)
+        ? EntryStatus.installedVersion(_entry)
+        : null;
+    final repository = _repository = EntryStatus.repository(
+      _entry.repositoryUrl,
+    );
+    _release = repository == null
+        ? null
+        : EntryStatus.latestVersion(repository);
+  }
 
   Future<void> _edit() async {
     final edited = await widget.onEdit?.call(_entry);
-    if (edited != null && mounted) setState(() => _entry = edited);
+    if (edited != null && mounted) {
+      setState(() {
+        _entry = edited;
+        _checkStatus();
+      });
+    }
+  }
+
+  Widget _status() {
+    final messages = context.messages;
+    return FutureBuilder<String?>(
+      future: _installation,
+      builder: (context, installation) => FutureBuilder<String?>(
+        future: _release,
+        builder: (context, release) {
+          final installed = installation.connectionState == ConnectionState.done
+              ? installation.data
+              : null;
+          final latest = release.connectionState == ConnectionState.done
+              ? release.data
+              : null;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (_installation != null)
+                Chip(
+                  label: Text(switch (installation) {
+                    AsyncSnapshot(hasError: true) =>
+                      messages.installationCheckFailed,
+                    AsyncSnapshot(connectionState: ConnectionState.waiting) =>
+                      messages.checkingInstallation,
+                    _ when installed == null => messages.itemNotInstalled,
+                    _ when installed.isEmpty => messages.itemInstalled,
+                    _ => messages.installedItemVersion(installed),
+                  }),
+                ),
+              if (_release != null && latest == null)
+                Chip(
+                  label: Text(switch (release) {
+                    AsyncSnapshot(hasError: true) =>
+                      messages.releaseCheckFailed,
+                    AsyncSnapshot(connectionState: ConnectionState.waiting) =>
+                      messages.checkingRelease,
+                    _ => messages.noStableRelease,
+                  }),
+                ),
+              if (latest != null)
+                OutlinedButton.icon(
+                  onPressed: () => _openLink(
+                    Uri(
+                      scheme: 'https',
+                      host: 'github.com',
+                      pathSegments: [
+                        ..._repository!.split('/'),
+                        'releases',
+                        'tag',
+                        latest,
+                      ],
+                    ).toString(),
+                  ),
+                  icon: const Icon(Icons.new_releases_outlined),
+                  label: Text(
+                    installed != null && isNewer(latest, installed)
+                        ? messages.itemUpdateAvailable(latest)
+                        : messages.latestItemRelease(latest),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openLink(String address) async {
@@ -160,6 +264,10 @@ class _EntryDetailsState extends State<EntryDetails> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  if (_installation != null || _release != null) ...[
+                    _status(),
+                    const SizedBox(height: 12),
+                  ],
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,

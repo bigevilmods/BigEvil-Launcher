@@ -2,6 +2,7 @@ package com.bigevil.bigevil_launcher
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -18,6 +19,19 @@ class MainActivity : FlutterActivity() {
         channel.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "installedVersion" -> {
+                        val packageName = call.arguments as String
+                        val version = try {
+                            packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+                        } catch (_: PackageManager.NameNotFoundException) {
+                            null
+                        }
+                        result.success(version)
+                    }
+                    "bluetoothSettings" -> {
+                        startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                        result.success(null)
+                    }
                     "apps" -> result.success(installedApps())
                     "launch" -> {
                         val target = call.arguments as String

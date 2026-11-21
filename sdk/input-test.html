@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste de controles</title>
+<style>
+  body { font: 1rem system-ui; margin: 1rem auto; padding: 0 1rem; max-width: 36rem; }
+  #hud { display: flex; flex-wrap: wrap; gap: .5rem; touch-action: none; user-select: none; }
+  button { font: inherit; min-width: 3rem; min-height: 3rem; }
+  button.active { color: white; background: #2053a8; }
+  pre { white-space: pre-wrap; }
+</style>
+<h1>Teste de controles</h1>
+<p>Pressione uma tecla, use os botões na tela ou pressione um botão do controle conectado.</p>
+<div id="hud" role="group" aria-label="Controles na tela">
+  <button data-action="left" aria-label="Esquerda">←</button>
+  <button data-action="up" aria-label="Cima">↑</button>
+  <button data-action="down" aria-label="Baixo">↓</button>
+  <button data-action="right" aria-label="Direita">→</button>
+  <button data-action="primary">A</button>
+  <button data-action="secondary">B</button>
+  <button data-action="start">Start</button>
+</div>
+<pre id="status"></pre>
+<script type="module">
+  import { createInput } from './input.mjs';
+
+  const hud = document.querySelector('#hud');
+  const status = document.querySelector('#status');
+  const buttons = hud.querySelectorAll('button');
+  const input = createInput({ hud });
+  function frame() {
+    const { pressed, gamepadAvailable, gamepads } = input.read();
+    for (const button of buttons) {
+      button.classList.toggle('active', pressed.has(button.dataset.action));
+    }
+    const connections = gamepadAvailable
+      ? gamepads.map(pad => {
+          const buttons = pad.buttons.flatMap((button, index) => button.pressed ? [index] : []);
+          const axes = pad.axes.map(value => value.toFixed(2));
+          return `${pad.id}\nBotões: ${buttons.join(', ')}\nEixos: ${axes.join(', ')}`;
+        }).join('\n\n') || 'Nenhum controle detectado'
+      : 'Gamepad API indisponível';
+    const text = `Ações: ${[...pressed].join(', ') || '—'}\n\n${connections}`;
+    if (status.textContent !== text) status.textContent = text;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</html>

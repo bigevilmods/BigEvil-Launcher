@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bigevil_launcher/dashboard.dart';
 import 'package:bigevil_launcher/entry_details.dart';
+import 'package:bigevil_launcher/entry_status.dart';
 import 'package:bigevil_launcher/library.dart';
 import 'package:bigevil_launcher/main.dart';
 import 'package:bigevil_launcher/updates.dart';
@@ -117,6 +118,31 @@ void main() {
         '[{"name":"Corrida","kind":"game","target":"file:///race.exe"}]',
       ),
       throwsFormatException,
+    );
+  });
+
+  test('catalog keeps installation identifiers and validates GitHub URLs', () {
+    final entry = Library.parseCatalog('''
+      [{
+        "name": "Example",
+        "kind": "app",
+        "repositoryUrl": "https://github.com/demo/example.git/",
+        "androidPackage": "org.example.app",
+        "windowsUninstallKey": "{12345678-1234-1234-1234-123456789abc}",
+        "linuxPackage": "example-app"
+      }]
+    ''').single;
+    expect(entry.toJson()['androidPackage'], 'org.example.app');
+    expect(entry.windowsUninstallKey, startsWith('{12345678'));
+    expect(entry.linuxPackage, 'example-app');
+    expect(EntryStatus.repository(entry.repositoryUrl), 'demo/example');
+    expect(
+      EntryStatus.repository('https://github.com/demo/app/issues'),
+      isNull,
+    );
+    expect(
+      EntryStatus.repository('https://github.com.example/demo/app'),
+      isNull,
     );
   });
 

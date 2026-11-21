@@ -37,6 +37,18 @@ The launcher reads the [online catalog](https://raw.githubusercontent.com/bigevi
 
 `name` and `kind` are required. Use `game` or `app` for `kind`. The other fields are optional. Use public HTTPS URLs for images and links.
 
+The launcher checks installation status and the latest stable release when you open an item's details or return to the app. Set `repositoryUrl` to the item's public GitHub repository to enable the release check. Add the installation identifiers for the item's supported platforms:
+
+| Field | Identifier |
+| --- | --- |
+| `androidPackage` | Android application ID, such as `org.example.game`. The app must be visible to the launcher under Android's package visibility rules. |
+| `windowsUninstallKey` | Registry subkey under `Software\Microsoft\Windows\CurrentVersion\Uninstall`. Both user and system registrations are checked. |
+| `linuxPackage` | Debian package name recorded by `dpkg`, such as `example-game`. |
+
+The details page links to the latest release. When the installed version and the release tag both use `major.minor.patch` with an optional `v` prefix, it flags a newer version as an available update.
+
+Web games can use the [input SDK](sdk/README.md) for keyboard, gamepad and on-screen controls. The browser's compatibility dialog reports input support. On Android, the Bluetooth button opens system pairing settings.
+
 ## Build and test
 
 Use Flutter 3.50.1 and Python 3. On Windows, install the Desktop development with C++ workload. On Linux, use Clang, CMake, Ninja, pkg-config, and the GTK 3 headers. On Android, use the Android SDK and JDK 21. The setup commands generate the native Flutter runners and apply the integrations in `packaging/`. Run setup for each target on the machine that will build it.

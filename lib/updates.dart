@@ -117,6 +117,17 @@ class Updater {
   static Future<Release?> check(String repository) async {
     final package = asset;
     if (package == null || !repositoryPattern.hasMatch(repository)) return null;
+    final data = await latestRelease(repository);
+    if (data == null) {
+      throw LocalizedFailure((messages) => messages.repoNotFound);
+    }
+    return selectRelease(data, repository, package, currentVersion);
+  }
+
+  static Future<Map<String, dynamic>?> latestRelease(String repository) async {
+    if (!repositoryPattern.hasMatch(repository)) {
+      throw ArgumentError.value(repository, 'repository');
+    }
     final client = _client();
     try {
       final request = await client.getUrl(
@@ -128,7 +139,7 @@ class Updater {
         const Duration(seconds: 15),
       );
       if (response.statusCode == 404) {
-        throw LocalizedFailure((messages) => messages.repoNotFound);
+        return null;
       }
       if (response.statusCode != 200) {
         throw LocalizedFailure(
@@ -141,12 +152,7 @@ class Updater {
         if (body.length > 2 * 1024 * 1024)
           throw LocalizedFailure((messages) => messages.githubResponseLimit);
       }
-      return selectRelease(
-        jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>,
-        repository,
-        package,
-        currentVersion,
-      );
+      return jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>;
     } finally {
       client.close(force: true);
     }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:webview_all/webview_all.dart';
@@ -146,6 +147,13 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
               return new WebAssembly.Instance(module).exports.run() === 42;
             } catch (_) { return false; }
           };
+          let gamepads = null;
+          try {
+            if (typeof navigator.getGamepads === 'function') {
+              gamepads = Array.from(navigator.getGamepads())
+                .filter(pad => pad && pad.connected).length;
+            }
+          } catch (_) {}
           return JSON.stringify({
             'WebAssembly': wasm(),
             'WebGL': supports('webgl'),
@@ -154,6 +162,10 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
             'Web Audio': !!(window.AudioContext || window.webkitAudioContext),
             'WebGPU': !!navigator.gpu,
             'SharedArrayBuffer': typeof SharedArrayBuffer !== 'undefined',
+            'Gamepad API': gamepads !== null,
+            'KeyboardEvent': typeof KeyboardEvent !== 'undefined',
+            'PointerEvent': typeof PointerEvent !== 'undefined',
+            gamepads,
           });
         })()
       ''';
@@ -165,15 +177,20 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: Text(context.messages.browserFeatures),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final feature in features.entries)
+              for (final feature in features.entries.where(
+                (feature) => feature.value is bool,
+              ))
                 Text(
                   '${feature.key}: ${feature.value == true ? context.messages.available : context.messages.unavailable}',
                 ),
+              if (features['gamepads'] case final int count)
+                Text(context.messages.detectedGamepads(count)),
             ],
           ),
           actions: [
@@ -192,6 +209,17 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
     }
   }
 
+  Future<void> _bluetoothSettings() async {
+    try {
+      await Library.android.invokeMethod<void>('bluetoothSettings');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.messages.bluetoothSettingsError)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
@@ -201,6 +229,12 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          if (Platform.isAndroid)
+            IconButton(
+              tooltip: context.messages.bluetoothSettings,
+              onPressed: _bluetoothSettings,
+              icon: const Icon(Icons.bluetooth),
+            ),
           IconButton(
             tooltip: context.messages.checkBrowserFeatures,
             onPressed: _ready && error == null ? _compatibility : null,
@@ -212,39 +246,6 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
         top: false,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: context.messages.browserBack,
-                    onPressed: enabled
-                        ? () => _navigate((view) async {
-                            if (await view.canGoBack()) await view.goBack();
-                          })
-                        : null,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  IconButton(
-                    tooltip: context.messages.browserForward,
-                    onPressed: enabled
-                        ? () => _navigate((view) async {
-                            if (await view.canGoForward())
-                              await view.goForward();
-                          })
-                        : null,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                  IconButton(
-                    tooltip: context.messages.reloadPage,
-                    onPressed: enabled
-                        ? () => _navigate((view) => view.reload())
-                        : null,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-            ),
             if (_progress < 100 && error == null)
               LinearProgressIndicator(
                 value: _progress == 0 ? null : _progress / 100,
