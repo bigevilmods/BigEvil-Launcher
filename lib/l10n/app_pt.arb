@@ -105,6 +105,7 @@
   "allPlatforms": "Todas as plataformas",
   "unsupportedItemPackage": "Este pacote não pode ser instalado neste dispositivo.",
   "noItemExecutable": "Não foi encontrado um executável único. Confira o campo executable no catálogo.",
+  "archiveHasNoExecutable": "O arquivo da release não contém um executável para este dispositivo.",
   "archiveExtractorMissing": "O extrator de ZIP e RAR está indisponível.",
   "itemExtractionFailed": "Não foi possível extrair o pacote com segurança.",
   "downloadAndInstall": "Baixar e instalar",

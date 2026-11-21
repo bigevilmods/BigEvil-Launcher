@@ -219,6 +219,7 @@
   "allPlatforms": "All platforms",
   "unsupportedItemPackage": "This package cannot be installed on this device.",
   "noItemExecutable": "No unique executable was found. Check the executable field in the catalog.",
+  "archiveHasNoExecutable": "The release archive contains no executable for this device.",
   "archiveExtractorMissing": "The ZIP and RAR extractor is unavailable.",
   "itemExtractionFailed": "Could not safely extract the package.",
   "downloadAndInstall": "Download and install",

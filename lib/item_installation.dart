@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -173,8 +174,36 @@ class ItemInstallation {
       keep = true;
       return File('${published.path}/$relative');
     } finally {
-      if (!keep && await staging.exists())
+      if (!keep) await discardStaging(staging);
+    }
+  }
+
+  static Future<void> discardStaging(Directory staging) async {
+    try {
+      if (!await staging.exists()) return;
+      try {
         await staging.delete(recursive: true);
+      } on FileSystemException {
+        if (!Platform.isWindows) rethrow;
+        final root = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+        final attrib = '$root\\System32\\attrib.exe';
+        await for (final item in staging.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (item is File || item is Directory) {
+            await Process.run(attrib, ['-R', '-H', '-S', item.path]);
+          }
+        }
+        await Process.run(attrib, ['-R', '-H', '-S', staging.path]);
+        await staging.delete(recursive: true);
+      }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Could not remove temporary item installation',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -379,6 +408,9 @@ class ItemInstallation {
           await _isExecutable(item, allowScript: preferred.isNotEmpty)) {
         candidates.add(item);
       }
+    }
+    if (candidates.isEmpty && preferred.isEmpty) {
+      throw LocalizedFailure((messages) => messages.archiveHasNoExecutable);
     }
     if (candidates.length != 1) {
       throw LocalizedFailure((messages) => messages.noItemExecutable);

@@ -334,6 +334,22 @@ void main() {
     );
   }, skip: !Platform.isWindows);
 
+  test('Windows staging cleanup removes read-only archive contents', () async {
+    final staging = await Directory.systemTemp.createTemp('bigevil-staging-');
+    addTearDown(() => ItemInstallation.discardStaging(staging));
+    final content = await Directory('${staging.path}/content').create();
+    final file = await File('${content.path}/source.cpp')
+        .writeAsString('source');
+    final attrib =
+        '${Platform.environment['SystemRoot'] ?? r'C:\Windows'}\\System32\\attrib.exe';
+    for (final path in [file.path, content.path]) {
+      final result = await Process.run(attrib, ['+R', path]);
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+    }
+    await ItemInstallation.discardStaging(staging);
+    expect(await staging.exists(), isFalse);
+  }, skip: !Platform.isWindows);
+
   test('release rejects wrong host, missing digest and unbounded packages', () {
     const repository = 'owner/repo';
     const asset = 'test.apk';
