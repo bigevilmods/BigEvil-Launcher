@@ -29,8 +29,14 @@ bool isNewerItemVersion(ItemVersion candidate, ItemVersion installed) {
 ItemPackage? selectItemPackage(
   Map<String, dynamic> release,
   String repository,
-  Abi abi,
-) {
+  Abi abi, {
+  Iterable<String> platforms = const [],
+}) {
+  final systems = platforms
+      .map((platform) => platform.trim().toLowerCase())
+      .where(const {'windows', 'linux', 'android'}.contains)
+      .toSet();
+  final inferredSystem = systems.length == 1 ? systems.single : null;
   final tag = release['tag_name'];
   final assets = release['assets'];
   if (tag is! String ||
@@ -74,7 +80,7 @@ ItemPackage? selectItemPackage(
             !RegExp(r'^sha256:[a-fA-F0-9]{64}$').hasMatch(digest))) {
       continue;
     }
-    final score = _packageScore(name.toLowerCase(), abi);
+    final score = _packageScore(name.toLowerCase(), abi, inferredSystem);
     if (score <= bestScore) continue;
     bestScore = score;
     final published = release['published_at'];
@@ -98,7 +104,7 @@ ItemPackage? selectItemPackage(
   return selected;
 }
 
-int _packageScore(String name, Abi abi) {
+int _packageScore(String name, Abi abi, String? inferredSystem) {
   bool token(String pattern) => RegExp(
     r'(?:^|[^a-z0-9])'
     '(?:$pattern)'
@@ -138,8 +144,11 @@ int _packageScore(String name, Abi abi) {
       abi == Abi.androidIA32 ||
       abi == Abi.androidX64) {
     if (name.endsWith('.apk')) return 30 + architectureScore;
-    return token('android') && name.endsWith('.zip')
-        ? 10 + architectureScore
+    if (!name.endsWith('.zip')) return 0;
+    if (token('android')) return 10 + architectureScore;
+    return inferredSystem == 'android' &&
+            !token('windows|win|win32|win64|linux|darwin|macos|osx|ios')
+        ? architectureScore
         : 0;
   }
   if (abi == Abi.windowsArm64 ||
@@ -152,6 +161,11 @@ int _packageScore(String name, Abi abi) {
         RegExp(r'\.(zip|rar)$').hasMatch(name)) {
       return 10 + architectureScore;
     }
+    if (inferredSystem == 'windows' &&
+        !token('ios') &&
+        RegExp(r'\.(zip|rar)$').hasMatch(name)) {
+      return architectureScore;
+    }
     return 0;
   }
   if (token('windows|win|android|darwin|macos|osx')) return 0;
@@ -161,6 +175,11 @@ int _packageScore(String name, Abi abi) {
   if (token('linux') &&
       RegExp(r'\.(tar\.(gz|xz|bz2|zst)|tgz|zip|rar)$').hasMatch(name)) {
     return 10 + architectureScore;
+  }
+  if (inferredSystem == 'linux' &&
+      !token('win32|win64|ios') &&
+      RegExp(r'\.(tar\.(gz|xz|bz2|zst)|tgz|zip|rar)$').hasMatch(name)) {
+    return architectureScore;
   }
   return 0;
 }

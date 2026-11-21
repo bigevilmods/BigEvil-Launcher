@@ -30,7 +30,12 @@ class ItemUpdates {
           () => Updater.latestRelease(repository),
         );
         if (release == null || !active()) continue;
-        final package = selectItemPackage(release, repository, Abi.current());
+        final package = selectItemPackage(
+          release,
+          repository,
+          Abi.current(),
+          platforms: entry.platforms,
+        );
         if (package == null ||
             !isNewerItemVersion(package.version, installed)) {
           continue;

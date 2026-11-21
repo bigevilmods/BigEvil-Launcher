@@ -155,7 +155,12 @@ class _EntryDetailsState extends State<EntryDetails> {
     final release = await check;
     final package = release == null
         ? null
-        : selectItemPackage(release, repository, Abi.current());
+        : selectItemPackage(
+            release,
+            repository,
+            Abi.current(),
+            platforms: entry.platforms,
+          );
     if (package == null) {
       throw LocalizedFailure((messages) => messages.noItemPackage);
     }

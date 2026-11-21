@@ -254,6 +254,58 @@ void main() {
     );
   });
 
+  test('a generic archive uses a single native catalog platform', () {
+    final release = {
+      'tag_name': '1.0',
+      'assets': [
+        for (final name in ['FInal.Fantasy.NSE.zip', 'game-linux-x64.zip'])
+          {
+            'name': name,
+            'state': 'uploaded',
+            'size': 1024,
+            'browser_download_url':
+                'https://github.com/demo/game/releases/download/1.0/$name',
+          },
+      ],
+    };
+    expect(
+      selectItemPackage(
+        release,
+        'demo/game',
+        Abi.windowsX64,
+        platforms: ['Windows'],
+      )?.name,
+      'FInal.Fantasy.NSE.zip',
+    );
+    expect(
+      selectItemPackage(
+        release,
+        'demo/game',
+        Abi.windowsX64,
+        platforms: ['Windows', 'Linux'],
+      ),
+      isNull,
+    );
+    expect(
+      selectItemPackage(
+        release,
+        'demo/game',
+        Abi.androidArm64,
+        platforms: ['Windows'],
+      ),
+      isNull,
+    );
+    expect(
+      selectItemPackage(
+        release,
+        'demo/game',
+        Abi.linuxX64,
+        platforms: ['Linux'],
+      )?.name,
+      'game-linux-x64.zip',
+    );
+  });
+
   testWidgets('details gate local play and require an online URL', (
     tester,
   ) async {
