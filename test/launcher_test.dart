@@ -1,12 +1,74 @@
+import 'dart:io';
+
 import 'package:bigevil_launcher/dashboard.dart';
 import 'package:bigevil_launcher/entry_details.dart';
 import 'package:bigevil_launcher/library.dart';
 import 'package:bigevil_launcher/main.dart';
 import 'package:bigevil_launcher/updates.dart';
+import 'package:bigevil_launcher/localization.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  test('language preference persists and defaults to the system', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'bigevil-language-',
+    );
+    final file = File('${directory.path}/language.txt');
+    addTearDown(() async {
+      if (await file.exists()) await file.delete();
+      await directory.delete();
+    });
+    final preference = LanguagePreference(file);
+    expect(await preference.load(), InterfaceLanguage.system);
+    await preference.save(InterfaceLanguage.english);
+    expect(await LanguagePreference(file).load(), InterfaceLanguage.english);
+    await preference.save(InterfaceLanguage.spanish);
+    expect(await LanguagePreference(file).load(), InterfaceLanguage.spanish);
+    await file.writeAsString('unsupported');
+    expect(await preference.load(), InterfaceLanguage.system);
+  });
+
+  testWidgets('language picker switches library labels without restarting', (
+    tester,
+  ) async {
+    var language = InterfaceLanguage.ptBR;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) => MaterialApp(
+          locale: language.locale,
+          supportedLocales: InterfaceLanguage.supportedLocales,
+          localizationsDelegates: const [
+            Messages.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          home: Launcher(
+            language: language,
+            onLanguageChanged: (value) async =>
+                setState(() => language = value),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('Idioma'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('English'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byTooltip('Language'), findsOneWidget);
+    expect(find.text('Search games and apps...'), findsOneWidget);
+    await tester.tap(find.byTooltip('Language'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('Español'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Buscar juegos y aplicaciones...'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('library entries round-trip and search by category and target', () {
     final game = Entry('Corrida', '/games/race', Kind.game);
     final app = Entry('Editor', '/apps/draw', Kind.app);
@@ -64,6 +126,12 @@ void main() {
     Entry? opened;
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: InterfaceLanguage.supportedLocales,
+        localizationsDelegates: const [
+          Messages.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
         home: EntryDetails(
           entry: entry,
           onOpen: (value) async => opened = value,
@@ -121,6 +189,12 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: InterfaceLanguage.supportedLocales,
+        localizationsDelegates: const [
+          Messages.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
         home: Scaffold(
           body: Column(
             children: [
@@ -167,6 +241,12 @@ void main() {
     Kind? selected;
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: InterfaceLanguage.supportedLocales,
+        localizationsDelegates: const [
+          Messages.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
         home: Scaffold(
           body: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

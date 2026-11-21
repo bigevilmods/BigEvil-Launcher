@@ -1,0 +1,267 @@
+{
+  "@@locale": "en",
+  "language": "Language",
+  "systemLanguage": "System language",
+  "home": "Home",
+  "games": "Games",
+  "gameLibrary": "Game library",
+  "applications": "Apps",
+  "settings": "Settings",
+  "creationProductivity": "Creative and productivity",
+  "galleryBack": "Previous in gallery",
+  "galleryForward": "Next in gallery",
+  "noResults": "No results",
+  "noGames": "No games in your library",
+  "noApps": "No apps in your library",
+  "addGame": "Add game",
+  "addApp": "Add app",
+  "itemDetails": "Details for {name}",
+  "@itemDetails": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "itemOptions": "Options for {name}",
+  "@itemOptions": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "edit": "Edit",
+  "removeFromLibrary": "Remove from library",
+  "details": "Details",
+  "play": "Play",
+  "open": "Open",
+  "playOnline": "Play online",
+  "openOnline": "Open online",
+  "download": "Download",
+  "repository": "Repository",
+  "description": "Description",
+  "noDescription": "No description provided.",
+  "linkError": "Could not open the address: {error}",
+  "@linkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editItem": "Edit item",
+  "addItem": "Add item",
+  "libraryReadError": "Could not read the library: {error}",
+  "@libraryReadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsReadError": "Could not load settings: {error}",
+  "@settingsReadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "currentRelease": "You’re using the latest version.",
+  "updateReady": "BigEvil Launcher {version} is ready to install",
+  "@updateReady": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateError": "Update failed: {error}",
+  "@updateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "updates": "Updates",
+  "versionLabel": "Version {version}",
+  "@versionLabel": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "publicRepo": "Public repository",
+  "repoPlaceholder": "owner/repository",
+  "updateHelp": "The launcher checks for and downloads new versions in the background. Leave the field empty to turn this off.",
+  "cancel": "Cancel",
+  "saveAndCheck": "Save and check",
+  "repoFormat": "Use the owner/repository format.",
+  "settingsSaveError": "Could not save settings: {error}",
+  "@settingsSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "librarySaveError": "Could not save the library: {error}",
+  "@librarySaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "itemOpenError": "Could not open {name}: {error}",
+  "@itemOpenError": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "installerError": "Could not open the installer: {error}",
+  "@installerError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "searchItems": "Search games and apps...",
+  "searchLibrary": "Search your library",
+  "updateProgress": "Downloading update · {percent}%",
+  "@updateProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "updateSettings": "Update settings",
+  "install": "Install",
+  "libraryUnavailable": "Library unavailable",
+  "retry": "Try again",
+  "pickerError": "Could not open the picker: {error}",
+  "@pickerError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "images": "Images",
+  "imagePickError": "Could not pick the image: {error}",
+  "@imagePickError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "imageImportError": "Could not import the image: {error}",
+  "@imageImportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "androidTargetHelp": "Select an app or enter an HTTP(S) link.",
+  "desktopTargetHelp": "Enter an absolute path or an HTTP(S) link.",
+  "name": "Name",
+  "nameRequired": "Enter a name.",
+  "androidTarget": "Android package or link",
+  "desktopTarget": "Executable, shortcut or link",
+  "pickInstalledApp": "Choose installed app",
+  "pickFile": "Choose file",
+  "pickCover": "Choose cover",
+  "pickBackground": "Choose background image",
+  "removeCover": "Remove cover",
+  "removeBackground": "Remove background image",
+  "developerName": "Developer",
+  "repositoryLink": "Repository link",
+  "downloadLink": "Download link",
+  "onlineLink": "Link to play or open online",
+  "webAddressHelp": "Enter a valid HTTP or HTTPS address.",
+  "itemType": "Type",
+  "game": "Game",
+  "app": "App",
+  "save": "Save",
+  "installedApps": "Installed apps",
+  "searchApps": "Search apps",
+  "noAppsFound": "No apps found",
+  "browserUnavailable": "The system browser is unavailable. Check that the WebView runtime is installed.",
+  "browserFeatures": "Features on this page",
+  "available": "Available",
+  "unavailable": "Unavailable",
+  "close": "Close",
+  "browserProbeError": "Could not check the features on this page.",
+  "checkBrowserFeatures": "Check WebAssembly, WebGL and other features",
+  "browserBack": "Go back in browser",
+  "browserForward": "Go forward in browser",
+  "reloadPage": "Reload page",
+  "address": "Address",
+  "pageError": "Could not load the page. {error}",
+  "@pageError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "imageSizeLimit": "Choose an image no larger than 8 MiB.",
+  "imageDimensions": "Use an image up to 4096 × 4096 pixels.",
+  "invalidAddress": "Invalid web address.",
+  "systemLinkError": "The system could not open the link.",
+  "missingFile": "The file was moved or deleted.",
+  "shortcutError": "The system could not open the shortcut.",
+  "noReleaseAsset": "Version {version} has no verifiable package for this platform.",
+  "@noReleaseAsset": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "repoNotFound": "Public repository or stable release not found.",
+  "githubHttpError": "GitHub returned HTTP {status}.",
+  "@githubHttpError": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "githubResponseLimit": "The GitHub response is too large.",
+  "downloadHttpError": "Download failed (HTTP {status}).",
+  "@downloadHttpError": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "invalidRedirect": "Invalid download redirect.",
+  "redirectLimit": "Redirect limit reached.",
+  "invalidPackageSize": "Invalid package size.",
+  "invalidChecksum": "The downloaded package failed SHA-256 verification.",
+  "openLinuxPackage": "Open the package with your package manager: {path}",
+  "@openLinuxPackage": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "androidAppUnavailable": "App unavailable.",
+  "androidInstallPermission": "Allow installation from this source in Android settings, then try again.",
+  "languageSaveError": "Could not save the language preference."
+}

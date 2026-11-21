@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:webview_all/webview_all.dart';
 
 import 'library.dart';
+import 'localization.dart';
 
 class OnlineBrowser extends StatefulWidget {
   const OnlineBrowser({
@@ -27,7 +28,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
   WebViewController? _controller;
   WebViewSession? _session;
   int _progress = 0;
-  String? _error;
+  Object? _error;
   bool _ready = false;
 
   @override
@@ -54,7 +55,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
   }
 
   void _report(Object error) {
-    if (mounted) setState(() => _error = error.toString());
+    if (mounted) setState(() => _error = error);
   }
 
   Future<void> _start() async {
@@ -71,9 +72,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
         onPermissionRequest: (request) => unawaited(request.deny()),
       );
       if (session == null)
-        throw StateError(
-          'O navegador do sistema está indisponível. Verifique a instalação do motor WebView.',
-        );
+        throw LocalizedFailure((messages) => messages.browserUnavailable);
       if (!mounted) {
         await session.close();
         return;
@@ -124,11 +123,9 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
   Future<void> _go(String text) async {
     final url = Library.webUri(text.trim());
     if (url == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe um endereço HTTP ou HTTPS válido.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.messages.webAddressHelp)));
       return;
     }
     await _navigate((controller) => controller.loadRequest(url));
@@ -185,21 +182,21 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Recursos nesta página'),
+          title: Text(context.messages.browserFeatures),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final feature in features.entries)
                 Text(
-                  '${feature.key}: ${feature.value == true ? 'Disponível' : 'Indisponível'}',
+                  '${feature.key}: ${feature.value == true ? context.messages.available : context.messages.unavailable}',
                 ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Fechar'),
+              child: Text(context.messages.close),
             ),
           ],
         ),
@@ -207,9 +204,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
     } catch (_) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Falha ao verificar os recursos desta página.'),
-          ),
+          SnackBar(content: Text(context.messages.browserProbeError)),
         );
     }
   }
@@ -224,7 +219,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
         title: Text(widget.title),
         actions: [
           IconButton(
-            tooltip: 'Verificar WebAssembly, WebGL e outros recursos',
+            tooltip: context.messages.checkBrowserFeatures,
             onPressed: _ready && error == null ? _compatibility : null,
             icon: const Icon(Icons.memory),
           ),
@@ -239,7 +234,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: 'Voltar no navegador',
+                    tooltip: context.messages.browserBack,
                     onPressed: enabled
                         ? () => _navigate((view) async {
                             if (await view.canGoBack()) await view.goBack();
@@ -248,7 +243,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
                     icon: const Icon(Icons.chevron_left),
                   ),
                   IconButton(
-                    tooltip: 'Avançar no navegador',
+                    tooltip: context.messages.browserForward,
                     onPressed: enabled
                         ? () => _navigate((view) async {
                             if (await view.canGoForward())
@@ -258,7 +253,7 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
                     icon: const Icon(Icons.chevron_right),
                   ),
                   IconButton(
-                    tooltip: 'Recarregar página',
+                    tooltip: context.messages.reloadPage,
                     onPressed: enabled
                         ? () => _navigate((view) => view.reload())
                         : null,
@@ -271,9 +266,9 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
                       keyboardType: TextInputType.url,
                       textInputAction: TextInputAction.go,
                       onSubmitted: _go,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         isDense: true,
-                        hintText: 'Endereço',
+                        hintText: context.messages.address,
                       ),
                     ),
                   ),
@@ -286,11 +281,15 @@ class _OnlineBrowserState extends State<OnlineBrowser> {
               ),
             if (error != null)
               MaterialBanner(
-                content: Text('Falha ao carregar a página. $error'),
+                content: Text(
+                  context.messages.pageError(
+                    localizedError(context.messages, error),
+                  ),
+                ),
                 actions: [
                   TextButton(
                     onPressed: enabled ? () => _go(_address.text) : _start,
-                    child: const Text('Tentar novamente'),
+                    child: Text(context.messages.retry),
                   ),
                 ],
               ),

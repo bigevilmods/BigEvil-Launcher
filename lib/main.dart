@@ -7,22 +7,49 @@ import 'package:material_ui/material_ui.dart';
 import 'dashboard.dart';
 import 'entry_details.dart';
 import 'library.dart';
+import 'localization.dart';
 import 'updates.dart';
 
 const ink = Color(0xff1b1c22);
 const panel = Color(0xff2a2c34);
 
-void main() => runApp(const BigEvil());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  var language = InterfaceLanguage.system;
+  try {
+    language = await (await LanguagePreference.forApp()).load();
+  } catch (error) {
+    debugPrint('Could not load saved language: $error');
+  }
+  runApp(BigEvil(initialLanguage: language));
+}
 
-class BigEvil extends StatelessWidget {
-  const BigEvil({super.key});
+class BigEvil extends StatefulWidget {
+  const BigEvil({super.key, this.initialLanguage = InterfaceLanguage.system});
+
+  final InterfaceLanguage initialLanguage;
+
+  @override
+  State<BigEvil> createState() => _BigEvilState();
+}
+
+class _BigEvilState extends State<BigEvil> {
+  late InterfaceLanguage _language = widget.initialLanguage;
+
+  Future<void> _setLanguage(InterfaceLanguage language) async {
+    await (await LanguagePreference.forApp()).save(language);
+    if (mounted) setState(() => _language = language);
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'BigEvil Launcher',
-    locale: const Locale('pt', 'BR'),
-    supportedLocales: const [Locale('pt', 'BR')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    locale: _language.locale,
+    supportedLocales: InterfaceLanguage.supportedLocales,
+    localizationsDelegates: const [
+      Messages.delegate,
+      ...GlobalMaterialLocalizations.delegates,
+    ],
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       brightness: Brightness.dark,
@@ -42,12 +69,19 @@ class BigEvil extends StatelessWidget {
         ),
       ),
     ),
-    home: const Launcher(),
+    home: Launcher(language: _language, onLanguageChanged: _setLanguage),
   );
 }
 
 class Launcher extends StatefulWidget {
-  const Launcher({super.key});
+  const Launcher({
+    super.key,
+    required this.language,
+    required this.onLanguageChanged,
+  });
+
+  final InterfaceLanguage language;
+  final Future<void> Function(InterfaceLanguage) onLanguageChanged;
 
   @override
   State<Launcher> createState() => _LauncherState();
@@ -63,10 +97,46 @@ class _LauncherState extends State<Launcher> {
   bool _saving = false;
   bool _checking = false;
   bool _editingRepository = false;
-  String? _updateMessage;
+  String? _updateVersion;
+  Object? _updateFailure;
+  bool _changingLanguage = false;
   File? _package;
   double? _progress;
   Timer? _timer;
+
+  Future<void> _chooseLanguage() async {
+    if (_changingLanguage) return;
+    setState(() => _changingLanguage = true);
+    try {
+      final language = await showDialog<InterfaceLanguage>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: Text(context.messages.language),
+          children: [
+            for (final language in InterfaceLanguage.values)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, language),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(language.label(context.messages)),
+                  trailing: language == widget.language
+                      ? const Icon(Icons.check)
+                      : null,
+                ),
+              ),
+          ],
+        ),
+      );
+      if (language != null && language != widget.language && mounted) {
+        await widget.onLanguageChanged(language);
+      }
+    } catch (error) {
+      debugPrint('Could not save language: $error');
+      _notify((messages) => messages.languageSaveError);
+    } finally {
+      if (mounted) setState(() => _changingLanguage = false);
+    }
+  }
 
   @override
   void initState() {
@@ -97,7 +167,10 @@ class _LauncherState extends State<Launcher> {
           _loadFailed = true;
           _loading = false;
         });
-      _notify('Falha ao ler a biblioteca: $error');
+      _notify(
+        (messages) =>
+            messages.libraryReadError(localizedError(messages, error)),
+      );
     }
   }
 
@@ -108,14 +181,17 @@ class _LauncherState extends State<Launcher> {
       _repository = repository;
       await _check();
     } catch (error) {
-      _notify('Falha ao carregar as configurações: $error');
+      _notify(
+        (messages) =>
+            messages.settingsReadError(localizedError(messages, error)),
+      );
     }
   }
 
-  void _notify(String message) {
+  void _notify(String Function(Messages) message) {
     if (mounted)
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+          .showSnackBar(SnackBar(content: Text(message(context.messages))));
   }
 
   Future<void> _check({bool manual = false}) async {
@@ -124,14 +200,15 @@ class _LauncherState extends State<Launcher> {
     }
     setState(() {
       _checking = true;
-      _updateMessage = null;
+      _updateVersion = null;
+      _updateFailure = null;
       _package = null;
     });
     try {
       final release = await Updater.check(_repository);
       if (!mounted) return;
       if (release == null) {
-        if (manual) _notify('Você está na versão mais recente.');
+        if (manual) _notify((messages) => messages.currentRelease);
         return;
       }
       setState(() => _progress = 0);
@@ -141,12 +218,10 @@ class _LauncherState extends State<Launcher> {
       if (mounted)
         setState(() {
           _package = file;
-          _updateMessage =
-              'BigEvil Launcher ${release.version} está pronto para instalar';
+          _updateVersion = release.version;
         });
     } catch (error) {
-      if (mounted)
-        setState(() => _updateMessage = 'Falha na atualização: $error');
+      if (mounted) setState(() => _updateFailure = error);
     } finally {
       if (mounted)
         setState(() {
@@ -164,35 +239,34 @@ class _LauncherState extends State<Launcher> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Atualizações'),
+          scrollable: true,
+          title: Text(context.messages.updates),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Versão $currentVersion'),
+              Text(context.messages.versionLabel(currentVersion)),
               const SizedBox(height: 16),
               TextFormField(
                 initialValue: value,
                 onChanged: (text) => value = text.trim(),
-                decoration: const InputDecoration(
-                  labelText: 'Repositório público',
-                  hintText: 'proprietário/repositório',
+                decoration: InputDecoration(
+                  labelText: context.messages.publicRepo,
+                  hintText: context.messages.repoPlaceholder,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'O launcher procura e baixa novas versões em segundo plano. Deixe o campo vazio para desativar.',
-              ),
+              Text(context.messages.updateHelp),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
+              child: Text(context.messages.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, value),
-              child: const Text('Salvar e verificar'),
+              child: Text(context.messages.saveAndCheck),
             ),
           ],
         );
@@ -202,7 +276,7 @@ class _LauncherState extends State<Launcher> {
     setState(() => _editingRepository = false);
     if (repository == null) return;
     if (repository.isNotEmpty && !repositoryPattern.hasMatch(repository)) {
-      _notify('Use o formato proprietário/repositório.');
+      _notify((messages) => messages.repoFormat);
       return;
     }
     try {
@@ -211,11 +285,15 @@ class _LauncherState extends State<Launcher> {
       setState(() {
         _repository = repository;
         _package = null;
-        _updateMessage = null;
+        _updateVersion = null;
+        _updateFailure = null;
       });
       await _check(manual: true);
     } catch (error) {
-      _notify('Falha ao salvar as configurações: $error');
+      _notify(
+        (messages) =>
+            messages.settingsSaveError(localizedError(messages, error)),
+      );
     }
   }
 
@@ -226,7 +304,10 @@ class _LauncherState extends State<Launcher> {
       await Library.save(entries);
       if (mounted) setState(() => _entries = entries);
     } catch (error) {
-      _notify('Falha ao salvar a biblioteca: $error');
+      _notify(
+        (messages) =>
+            messages.librarySaveError(localizedError(messages, error)),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -265,7 +346,10 @@ class _LauncherState extends State<Launcher> {
     try {
       await Library.open(entry);
     } catch (error) {
-      _notify('Falha ao abrir ${entry.name}: $error');
+      _notify(
+        (messages) =>
+            messages.itemOpenError(entry.name, localizedError(messages, error)),
+      );
     }
   }
 
@@ -275,7 +359,9 @@ class _LauncherState extends State<Launcher> {
     try {
       await Updater.install(file);
     } catch (error) {
-      _notify('Falha ao abrir o instalador: $error');
+      _notify(
+        (messages) => messages.installerError(localizedError(messages, error)),
+      );
     }
   }
 
@@ -288,6 +374,13 @@ class _LauncherState extends State<Launcher> {
     ).toList(growable: false);
     final editable = !_loading && !_loadFailed && !_saving;
     final settings = _checking ? null : _settings;
+    final updateMessage = switch ((_updateFailure, _updateVersion)) {
+      (final error?, _) => context.messages.updateError(
+        localizedError(context.messages, error),
+      ),
+      (_, final version?) => context.messages.updateReady(version),
+      _ => null,
+    };
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -348,8 +441,8 @@ class _LauncherState extends State<Launcher> {
                                           size: 21,
                                         ),
                                         hintText: desktop
-                                            ? 'Buscar jogos e aplicativos...'
-                                            : 'Buscar na biblioteca',
+                                            ? context.messages.searchItems
+                                            : context.messages.searchLibrary,
                                         contentPadding:
                                             const EdgeInsets.symmetric(
                                               vertical: 12,
@@ -369,7 +462,9 @@ class _LauncherState extends State<Launcher> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        'Baixando atualização · ${(progress * 100).round()}%',
+                                        context.messages.updateProgress(
+                                          (progress * 100).round(),
+                                        ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(fontSize: 12),
@@ -385,17 +480,25 @@ class _LauncherState extends State<Launcher> {
                                 OutlinedButton.icon(
                                   onPressed: add,
                                   icon: const Icon(Icons.add, size: 19),
-                                  label: const Text('Adicionar item'),
+                                  label: Text(context.messages.addItem),
                                 )
                               else
                                 IconButton.outlined(
-                                  tooltip: 'Adicionar item',
+                                  tooltip: context.messages.addItem,
                                   onPressed: add,
                                   icon: const Icon(Icons.add),
                                 ),
                               const SizedBox(width: 7),
                               IconButton.outlined(
-                                tooltip: 'Configurar atualizações',
+                                tooltip: context.messages.language,
+                                onPressed: _changingLanguage
+                                    ? null
+                                    : _chooseLanguage,
+                                icon: const Icon(Icons.translate, size: 20),
+                              ),
+                              const SizedBox(width: 7),
+                              IconButton.outlined(
+                                tooltip: context.messages.updateSettings,
                                 onPressed: settings,
                                 icon: const Icon(
                                   Icons.settings_outlined,
@@ -419,12 +522,14 @@ class _LauncherState extends State<Launcher> {
                           if (_progress case final progress?
                               when toolbarProgress == null) ...[
                             Text(
-                              'Baixando atualização · ${(progress * 100).round()}%',
+                              context.messages.updateProgress(
+                                (progress * 100).round(),
+                              ),
                             ),
                             LinearProgressIndicator(value: progress),
                             const SizedBox(height: 15),
                           ],
-                          if (_updateMessage case final message?) ...[
+                          if (updateMessage case final message?) ...[
                             ListTile(
                               tileColor: panel,
                               leading: const Icon(Icons.system_update_alt),
@@ -433,7 +538,7 @@ class _LauncherState extends State<Launcher> {
                                   ? null
                                   : TextButton(
                                       onPressed: _install,
-                                      child: const Text('Instalar'),
+                                      child: Text(context.messages.install),
                                     ),
                             ),
                             const SizedBox(height: 15),
@@ -442,10 +547,10 @@ class _LauncherState extends State<Launcher> {
                             const Center(child: CircularProgressIndicator())
                           else if (_loadFailed)
                             ListTile(
-                              title: const Text('Biblioteca indisponível'),
+                              title: Text(context.messages.libraryUnavailable),
                               trailing: TextButton(
                                 onPressed: _load,
-                                child: const Text('Tentar novamente'),
+                                child: Text(context.messages.retry),
                               ),
                             )
                           else
@@ -522,11 +627,8 @@ class _EntryEditorState extends State<EntryEditor> {
     text: widget.previous?.onlineUrl,
   );
   late Kind _kind = widget.previous?.kind ?? widget.initialKind ?? Kind.game;
-  late final _cover = _ItemImage('capa', widget.previous?.coverPath);
-  late final _background = _ItemImage(
-    'capa de fundo',
-    widget.previous?.backgroundPath,
-  );
+  late final _cover = _ItemImage(widget.previous?.coverPath);
+  late final _background = _ItemImage(widget.previous?.backgroundPath);
   bool _importingCover = false;
   String? _pickerError;
 
@@ -565,7 +667,11 @@ class _EntryEditorState extends State<EntryEditor> {
       }
     } catch (error) {
       if (mounted)
-        setState(() => _pickerError = 'Falha ao abrir o seletor: $error');
+        setState(
+          () => _pickerError = context.messages.pickerError(
+            localizedError(context.messages, error),
+          ),
+        );
     }
   }
 
@@ -574,7 +680,7 @@ class _EntryEditorState extends State<EntryEditor> {
       final file = await openFile(
         acceptedTypeGroups: [
           XTypeGroup(
-            label: 'Imagens',
+            label: context.messages.images,
             extensions: ['png', 'jpg', 'jpeg', 'webp'],
             mimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
           ),
@@ -588,7 +694,9 @@ class _EntryEditorState extends State<EntryEditor> {
     } catch (error) {
       if (mounted)
         setState(
-          () => _pickerError = 'Falha ao escolher a ${image.label}: $error',
+          () => _pickerError = context.messages.imagePickError(
+            localizedError(context.messages, error),
+          ),
         );
     }
   }
@@ -607,7 +715,9 @@ class _EntryEditorState extends State<EntryEditor> {
       if (mounted)
         setState(() {
           _importingCover = false;
-          _pickerError = 'Falha ao importar a imagem: $error';
+          _pickerError = context.messages.imageImportError(
+            localizedError(context.messages, error),
+          );
         });
       return;
     }
@@ -639,13 +749,17 @@ class _EntryEditorState extends State<EntryEditor> {
     if (!Platform.isAndroid && value.isNotEmpty && File(value).isAbsolute)
       return null;
     return Platform.isAndroid
-        ? 'Selecione um app ou informe um link HTTP(S).'
-        : 'Informe um caminho absoluto ou um link HTTP(S).';
+        ? context.messages.androidTargetHelp
+        : context.messages.desktopTargetHelp;
   }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.previous == null ? 'Adicionar item' : 'Editar item'),
+    title: Text(
+      widget.previous == null
+          ? context.messages.addItem
+          : context.messages.editItem,
+    ),
     scrollable: true,
     content: Form(
       key: _form,
@@ -655,9 +769,9 @@ class _EntryEditorState extends State<EntryEditor> {
           TextFormField(
             controller: _name,
             maxLength: 100,
-            decoration: const InputDecoration(labelText: 'Nome'),
+            decoration: InputDecoration(labelText: context.messages.name),
             validator: (value) => value == null || value.trim().isEmpty
-                ? 'Informe um nome.'
+                ? context.messages.nameRequired
                 : null,
           ),
           const SizedBox(height: 8),
@@ -665,8 +779,8 @@ class _EntryEditorState extends State<EntryEditor> {
             controller: _target,
             decoration: InputDecoration(
               labelText: Platform.isAndroid
-                  ? 'Pacote Android ou link'
-                  : 'Executável, atalho ou link',
+                  ? context.messages.androidTarget
+                  : context.messages.desktopTarget,
             ),
             validator: _validateTarget,
           ),
@@ -676,8 +790,8 @@ class _EntryEditorState extends State<EntryEditor> {
             icon: const Icon(Icons.folder_open),
             label: Text(
               Platform.isAndroid
-                  ? 'Escolher app instalado'
-                  : 'Escolher arquivo',
+                  ? context.messages.pickInstalledApp
+                  : context.messages.pickFile,
             ),
           ),
           for (final image in [_cover, _background])
@@ -689,11 +803,17 @@ class _EntryEditorState extends State<EntryEditor> {
                 OutlinedButton.icon(
                   onPressed: _importingCover ? null : () => _pickImage(image),
                   icon: const Icon(Icons.image_outlined),
-                  label: Text('Escolher ${image.label}'),
+                  label: Text(
+                    image == _cover
+                        ? context.messages.pickCover
+                        : context.messages.pickBackground,
+                  ),
                 ),
                 if (image.selected != null || image.path != null)
                   IconButton(
-                    tooltip: 'Remover ${image.label}',
+                    tooltip: image == _cover
+                        ? context.messages.removeCover
+                        : context.messages.removeBackground,
                     onPressed: _importingCover
                         ? null
                         : () => setState(() {
@@ -711,7 +831,9 @@ class _EntryEditorState extends State<EntryEditor> {
           TextFormField(
             controller: _developer,
             maxLength: 120,
-            decoration: const InputDecoration(labelText: 'Desenvolvedor'),
+            decoration: InputDecoration(
+              labelText: context.messages.developerName,
+            ),
           ),
           const SizedBox(height: 10),
           TextFormField(
@@ -719,12 +841,14 @@ class _EntryEditorState extends State<EntryEditor> {
             maxLength: 6000,
             minLines: 3,
             maxLines: 5,
-            decoration: const InputDecoration(labelText: 'Descrição'),
+            decoration: InputDecoration(
+              labelText: context.messages.description,
+            ),
           ),
           for (final (label, controller) in [
-            ('Link do repositório', _repositoryUrl),
-            ('Link para baixar', _downloadUrl),
-            ('Link para jogar ou abrir online', _onlineUrl),
+            (context.messages.repositoryLink, _repositoryUrl),
+            (context.messages.downloadLink, _downloadUrl),
+            (context.messages.onlineLink, _onlineUrl),
           ]) ...[
             const SizedBox(height: 10),
             TextFormField(
@@ -735,7 +859,7 @@ class _EntryEditorState extends State<EntryEditor> {
                 final value = input?.trim() ?? '';
                 return value.isEmpty || Library.isWebLink(value)
                     ? null
-                    : 'Informe um endereço HTTP ou HTTPS válido.';
+                    : context.messages.webAddressHelp;
               },
             ),
           ],
@@ -743,10 +867,16 @@ class _EntryEditorState extends State<EntryEditor> {
           const SizedBox(height: 12),
           DropdownButtonFormField<Kind>(
             initialValue: _kind,
-            decoration: const InputDecoration(labelText: 'Tipo'),
-            items: const [
-              DropdownMenuItem(value: Kind.game, child: Text('Jogo')),
-              DropdownMenuItem(value: Kind.app, child: Text('Aplicativo')),
+            decoration: InputDecoration(labelText: context.messages.itemType),
+            items: [
+              DropdownMenuItem(
+                value: Kind.game,
+                child: Text(context.messages.game),
+              ),
+              DropdownMenuItem(
+                value: Kind.app,
+                child: Text(context.messages.app),
+              ),
             ],
             onChanged: (kind) {
               if (kind != null) _kind = kind;
@@ -758,19 +888,18 @@ class _EntryEditorState extends State<EntryEditor> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancelar'),
+        child: Text(context.messages.cancel),
       ),
       FilledButton(
         onPressed: _importingCover ? null : _submit,
-        child: const Text('Salvar'),
+        child: Text(context.messages.save),
       ),
     ],
   );
 }
 
 class _ItemImage {
-  _ItemImage(this.label, this.path);
-  final String label;
+  _ItemImage(this.path);
   String? path;
   XFile? selected;
 }
@@ -794,7 +923,7 @@ class _AppPickerState extends State<_AppPicker> {
       null,
     ).toList(growable: false);
     return AlertDialog(
-      title: const Text('Apps instalados'),
+      title: Text(context.messages.installedApps),
       content: SizedBox(
         width: 420,
         height: 340,
@@ -802,11 +931,13 @@ class _AppPickerState extends State<_AppPicker> {
           children: [
             TextField(
               onChanged: (value) => setState(() => _query = value),
-              decoration: const InputDecoration(hintText: 'Pesquisar apps'),
+              decoration: InputDecoration(
+                hintText: context.messages.searchApps,
+              ),
             ),
             Expanded(
               child: matches.isEmpty
-                  ? const Center(child: Text('Nenhum app encontrado'))
+                  ? Center(child: Text(context.messages.noAppsFound))
                   : ListView.builder(
                       itemCount: matches.length,
                       itemBuilder: (context, index) {

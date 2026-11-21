@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bigevil_launcher/online_browser.dart';
+import 'package:bigevil_launcher/localization.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -20,8 +21,14 @@ void main() {
     });
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('es'),
+        supportedLocales: InterfaceLanguage.supportedLocales,
+        localizationsDelegates: const [
+          Messages.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
         home: OnlineBrowser(
-          title: 'Teste do navegador',
+          title: 'Prueba del navegador',
           initialUrl: Uri.http('127.0.0.1:${server.port}', '/'),
         ),
       ),
@@ -29,7 +36,7 @@ void main() {
     final probe = find.byWidgetPredicate(
       (widget) =>
           widget is IconButton &&
-          widget.tooltip == 'Verificar WebAssembly, WebGL e outros recursos',
+          widget.tooltip == 'Comprobar WebAssembly, WebGL y otras funciones',
     );
     final timeout = DateTime.now().add(const Duration(seconds: 25));
     while (tester.widget<IconButton>(probe).onPressed == null &&
@@ -40,7 +47,7 @@ void main() {
     expect(find.byType(MaterialBanner), findsNothing);
     expect(tester.widget<IconButton>(probe).onPressed, isNotNull);
     await tester.tap(probe);
-    final result = find.text('WebAssembly: Disponível');
+    final result = find.text('WebAssembly: Disponible');
     while (result.evaluate().isEmpty && DateTime.now().isBefore(timeout)) {
       await tester.pump(const Duration(milliseconds: 150));
       await Future<void>.delayed(const Duration(milliseconds: 150));

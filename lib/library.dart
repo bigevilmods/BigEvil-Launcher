@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'entry.dart';
+import 'localization.dart';
 export 'entry.dart';
 
 class Library {
@@ -19,20 +20,18 @@ class Library {
   static Future<String> importCover(XFile source) async {
     const limit = 8 * 1024 * 1024;
     if (await source.length() > limit) {
-      throw const FormatException('Escolha uma imagem de até 8 MiB.');
+      throw LocalizedFailure((messages) => messages.imageSizeLimit);
     }
     final bytes = await source.readAsBytes();
     if (bytes.length > limit) {
-      throw const FormatException('Escolha uma imagem de até 8 MiB.');
+      throw LocalizedFailure((messages) => messages.imageSizeLimit);
     }
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     try {
       final image = await ui.ImageDescriptor.encoded(buffer);
       try {
         if (image.width > 4096 || image.height > 4096) {
-          throw const FormatException(
-            'Use uma imagem de até 4096 × 4096 pixels.',
-          );
+          throw LocalizedFailure((messages) => messages.imageDimensions);
         }
       } finally {
         image.dispose();
@@ -96,9 +95,10 @@ class Library {
 
   static Future<void> openWebLink(String address) async {
     final uri = webUri(address);
-    if (uri == null) throw const FormatException('Endereço web inválido.');
+    if (uri == null)
+      throw LocalizedFailure((messages) => messages.invalidAddress);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      throw StateError('O sistema não abriu o link.');
+      throw LocalizedFailure((messages) => messages.systemLinkError);
     }
   }
 
@@ -113,7 +113,7 @@ class Library {
       return;
     }
     if (!await File(target).exists()) {
-      throw StateError('O arquivo foi movido ou excluído.');
+      throw LocalizedFailure((messages) => messages.missingFile);
     }
     if (Platform.isLinux && target.endsWith('.desktop')) {
       final result = await Process.run('gio', [
@@ -121,7 +121,7 @@ class Library {
         File(target).absolute.path,
       ]);
       if (result.exitCode == 0) return;
-      throw StateError('O sistema não abriu o atalho.');
+      throw LocalizedFailure((messages) => messages.shortcutError);
     }
     if (Platform.isWindows && target.toLowerCase().endsWith('.lnk')) {
       if (await launchUrl(
@@ -129,7 +129,7 @@ class Library {
         mode: LaunchMode.externalApplication,
       ))
         return;
-      throw StateError('O sistema não abriu o atalho.');
+      throw LocalizedFailure((messages) => messages.shortcutError);
     }
     final file = File(target).absolute;
     await Process.start(

@@ -4,6 +4,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:material_ui/material_ui.dart';
 
 import 'entry.dart';
+import 'localization.dart';
 
 const dashboardCyan = Color(0xff65d6fb);
 const dashboardPurple = Color(0xffc38af8);
@@ -30,9 +31,9 @@ class DashboardNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final destinations = [
-      (null, Icons.home_outlined, 'Início'),
-      (Kind.game, Icons.sports_esports_outlined, 'Biblioteca de jogos'),
-      (Kind.app, Icons.apps_outlined, 'Aplicativos'),
+      (null, Icons.home_outlined, context.messages.home),
+      (Kind.game, Icons.sports_esports_outlined, context.messages.gameLibrary),
+      (Kind.app, Icons.apps_outlined, context.messages.applications),
     ];
     if (!desktop) {
       return NavigationBar(
@@ -40,10 +41,10 @@ class DashboardNavigation extends StatelessWidget {
         selectedIndex: destinations.indexWhere((item) => item.$1 == selected),
         onDestinationSelected: (index) => onSelect(destinations[index].$1),
         destinations: [
-          for (final (_, icon, label) in destinations)
+          for (final (kind, icon, label) in destinations)
             NavigationDestination(
               icon: Icon(icon),
-              label: label == 'Biblioteca de jogos' ? 'Jogos' : label,
+              label: kind == Kind.game ? context.messages.games : label,
             ),
         ],
       );
@@ -73,7 +74,7 @@ class DashboardNavigation extends StatelessWidget {
               onTap: () => onSelect(kind),
             ),
           _NavigationTile(
-            label: 'Configurações',
+            label: context.messages.settings,
             icon: Icons.settings_outlined,
             onTap: onSettings,
           ),
@@ -252,8 +253,9 @@ class _DashboardGalleryState extends State<DashboardGallery> {
                         Expanded(
                           child: Text(
                             games
-                                ? 'BIBLIOTECA DE JOGOS'
-                                : 'CRIAÇÃO E PRODUTIVIDADE',
+                                ? context.messages.gameLibrary.toUpperCase()
+                                : context.messages.creationProductivity
+                                      .toUpperCase(),
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
@@ -263,12 +265,12 @@ class _DashboardGalleryState extends State<DashboardGallery> {
                         ),
                         if (scrolls) ...[
                           IconButton(
-                            tooltip: 'Voltar na galeria',
+                            tooltip: context.messages.galleryBack,
                             onPressed: () => _move(-width - 14),
                             icon: const Icon(Icons.chevron_left),
                           ),
                           IconButton(
-                            tooltip: 'Avançar na galeria',
+                            tooltip: context.messages.galleryForward,
                             onPressed: () => _move(width + 14),
                             icon: const Icon(Icons.chevron_right),
                           ),
@@ -366,10 +368,10 @@ class _GalleryEmpty extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             hasSearch
-                ? 'Nenhum resultado'
+                ? context.messages.noResults
                 : games
-                ? 'Nenhum jogo na biblioteca'
-                : 'Nenhum aplicativo na biblioteca',
+                ? context.messages.noGames
+                : context.messages.noApps,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
@@ -377,7 +379,9 @@ class _GalleryEmpty extends StatelessWidget {
             TextButton.icon(
               onPressed: onAdd,
               icon: const Icon(Icons.add, size: 18),
-              label: Text(games ? 'Adicionar jogo' : 'Adicionar aplicativo'),
+              label: Text(
+                games ? context.messages.addGame : context.messages.addApp,
+              ),
             ),
         ],
       ),
@@ -466,7 +470,7 @@ class DashboardCard extends StatelessWidget {
                           child: InkWell(
                             onTap: onDetails,
                             child: Semantics(
-                              label: 'Detalhes de ${entry.name}',
+                              label: context.messages.itemDetails(entry.name),
                               child: const SizedBox.expand(),
                             ),
                           ),
@@ -480,21 +484,23 @@ class DashboardCard extends StatelessWidget {
                           color: const Color(0xc61b1e27),
                           shape: const CircleBorder(),
                           child: PopupMenuButton<String>(
-                            tooltip: 'Opções de ${entry.name}',
+                            tooltip: context.messages.itemOptions(entry.name),
                             icon: const Icon(Icons.more_horiz, size: 19),
                             onSelected: (action) {
                               if (action == 'edit') onEdit?.call();
                               if (action == 'remove') onRemove?.call();
                             },
                             itemBuilder: (_) => [
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'edit',
-                                child: Text('Editar'),
+                                child: Text(context.messages.edit),
                               ),
                               if (onRemove != null)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'remove',
-                                  child: Text('Remover da biblioteca'),
+                                  child: Text(
+                                    context.messages.removeFromLibrary,
+                                  ),
                                 ),
                             ],
                           ),
@@ -542,7 +548,7 @@ class DashboardCard extends StatelessWidget {
                     if (!hasTarget)
                       TextButton(
                         onPressed: onDetails,
-                        child: const Text('Detalhes'),
+                        child: Text(context.messages.details),
                       )
                     else if (games)
                       Material(
@@ -564,7 +570,7 @@ class DashboardCard extends StatelessWidget {
                                 horizontal: 16,
                               ),
                             ),
-                            child: const Text('Jogar'),
+                            child: Text(context.messages.play),
                           ),
                         ),
                       )
@@ -572,7 +578,7 @@ class DashboardCard extends StatelessWidget {
                       TextButton(
                         onPressed: onOpen,
                         style: TextButton.styleFrom(foregroundColor: accent),
-                        child: const Text('Abrir ›'),
+                        child: Text('${context.messages.open} ›'),
                       ),
                   ],
                 ),

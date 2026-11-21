@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.2.0"
+  #define AppVersion "1.3.0"
 #endif
 
 [Setup]
@@ -21,6 +21,8 @@ SolidCompression=yes
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -29,4 +31,4 @@ Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignore
 Name: "{group}\BigEvil Launcher"; Filename: "{app}\bigevil_launcher.exe"
 
 [Run]
-Filename: "{app}\bigevil_launcher.exe"; Description: "Abrir BigEvil Launcher"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\bigevil_launcher.exe"; Description: "{cm:LaunchProgram,BigEvil Launcher}"; Flags: nowait postinstall skipifsilent

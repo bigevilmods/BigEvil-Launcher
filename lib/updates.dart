@@ -7,10 +7,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'library.dart';
+import 'localization.dart';
 
 const currentVersion = String.fromEnvironment(
   'BIGEVIL_VERSION',
-  defaultValue: '1.2.0',
+  defaultValue: '1.3.0',
 );
 const defaultRepository = String.fromEnvironment('BIGEVIL_REPOSITORY');
 final repositoryPattern = RegExp(r'^[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$');
@@ -75,9 +76,7 @@ Release? selectRelease(
       );
     }
   }
-  throw StateError(
-    'A versão $tag não possui um pacote verificável para esta plataforma.',
-  );
+  throw LocalizedFailure((messages) => messages.noReleaseAsset(tag));
 }
 
 class Updater {
@@ -120,18 +119,18 @@ class Updater {
         const Duration(seconds: 15),
       );
       if (response.statusCode == 404) {
-        throw StateError(
-          'Repositório público ou release estável não encontrado.',
-        );
+        throw LocalizedFailure((messages) => messages.repoNotFound);
       }
       if (response.statusCode != 200) {
-        throw StateError('GitHub retornou HTTP ${response.statusCode}.');
+        throw LocalizedFailure(
+          (messages) => messages.githubHttpError(response.statusCode),
+        );
       }
       final body = BytesBuilder(copy: false);
       await for (final chunk in response.timeout(const Duration(seconds: 15))) {
         body.add(chunk);
         if (body.length > 2 * 1024 * 1024)
-          throw StateError('Resposta do GitHub muito grande.');
+          throw LocalizedFailure((messages) => messages.githubResponseLimit);
       }
       return selectRelease(
         jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>,
@@ -178,7 +177,9 @@ class Updater {
         final location = result.headers.value(HttpHeaders.locationHeader);
         if (![301, 302, 303, 307, 308].contains(result.statusCode) ||
             location == null) {
-          throw StateError('Falha no download (HTTP ${result.statusCode}).');
+          throw LocalizedFailure(
+            (messages) => messages.downloadHttpError(result.statusCode),
+          );
         }
         await result.drain<void>().timeout(const Duration(seconds: 10));
         url = url.resolve(location);
@@ -186,11 +187,11 @@ class Updater {
             url.userInfo.isNotEmpty ||
             (url.host != 'github.com' &&
                 !url.host.endsWith('.githubusercontent.com'))) {
-          throw StateError('Redirecionamento de download inválido.');
+          throw LocalizedFailure((messages) => messages.invalidRedirect);
         }
       }
       if (response == null)
-        throw StateError('Limite de redirecionamentos atingido.');
+        throw LocalizedFailure((messages) => messages.redirectLimit);
       var received = 0;
       final stopwatch = Stopwatch()..start();
       final writer = await partial.open(mode: FileMode.write);
@@ -200,7 +201,7 @@ class Updater {
         )) {
           received += chunk.length;
           if (received > release.size)
-            throw StateError('Tamanho do pacote inválido.');
+            throw LocalizedFailure((messages) => messages.invalidPackageSize);
           await writer.writeFrom(chunk);
           if (stopwatch.elapsedMilliseconds >= 100) {
             progress(received / release.size);
@@ -213,7 +214,7 @@ class Updater {
       if (received != release.size ||
           (await sha256.bind(partial.openRead()).first).toString() !=
               release.digest) {
-        throw StateError('O pacote baixado falhou na verificação SHA-256.');
+        throw LocalizedFailure((messages) => messages.invalidChecksum);
       }
       progress(1);
       return await partial.rename(output.path);
@@ -233,8 +234,8 @@ class Updater {
       Uri.file(file.path),
       mode: LaunchMode.externalApplication,
     )) {
-      throw StateError(
-        'Abra o pacote com o gerenciador de pacotes: ${file.path}',
+      throw LocalizedFailure(
+        (messages) => messages.openLinuxPackage(file.path),
       );
     }
   }

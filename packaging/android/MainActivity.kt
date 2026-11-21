@@ -22,7 +22,7 @@ class MainActivity : FlutterActivity() {
                     "launch" -> {
                         val target = call.arguments as String
                         val launch = packageManager.getLaunchIntentForPackage(target)
-                            ?: throw ActivityNotFoundException("Aplicativo indisponível")
+                            ?: throw ActivityNotFoundException()
                         startActivity(launch)
                         result.success(null)
                     }
@@ -32,6 +32,10 @@ class MainActivity : FlutterActivity() {
                     }
                     else -> result.notImplemented()
                 }
+            } catch (error: ActivityNotFoundException) {
+                result.error(if (call.method == "launch") "app_unavailable" else "platform", error.message, null)
+            } catch (error: InstallPermissionRequired) {
+                result.error("install_permission", null, null)
             } catch (error: Exception) {
                 result.error("platform", error.message, null)
             }
@@ -56,7 +60,7 @@ class MainActivity : FlutterActivity() {
         require(file.path.startsWith(directory.path + File.separator) && file.isFile)
         if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            throw IllegalStateException("Autorize esta fonte no Android e toque em Instalar novamente.")
+            throw InstallPermissionRequired()
         }
         val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
         startActivity(Intent(Intent.ACTION_VIEW).apply {
@@ -64,4 +68,6 @@ class MainActivity : FlutterActivity() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
     }
+
+    private class InstallPermissionRequired : Exception()
 }

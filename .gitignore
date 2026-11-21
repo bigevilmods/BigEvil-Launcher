@@ -1,4 +1,5 @@
 .dart_tool/
+/lib/l10n/generated/
 .flutter-plugins-dependencies
 .idea/
 build/

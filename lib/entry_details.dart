@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dashboard.dart';
 import 'library.dart';
+import 'localization.dart';
 import 'online_browser.dart';
 
 class EntryDetails extends StatefulWidget {
@@ -36,7 +37,13 @@ class _EntryDetailsState extends State<EntryDetails> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Falha ao abrir o endereço: $error')),
+          SnackBar(
+            content: Text(
+              context.messages.linkError(
+                localizedError(context.messages, error),
+              ),
+            ),
+          ),
         );
       }
     }
@@ -53,7 +60,7 @@ class _EntryDetailsState extends State<EntryDetails> {
         actions: [
           if (widget.onEdit != null)
             IconButton(
-              tooltip: 'Editar item',
+              tooltip: context.messages.editItem,
               onPressed: _edit,
               icon: const Icon(Icons.edit_outlined),
             ),
@@ -163,7 +170,11 @@ class _EntryDetailsState extends State<EntryDetails> {
                         FilledButton.icon(
                           onPressed: () => widget.onOpen(entry),
                           icon: const Icon(Icons.play_arrow_rounded),
-                          label: Text(game ? 'Jogar' : 'Abrir'),
+                          label: Text(
+                            game
+                                ? context.messages.play
+                                : context.messages.open,
+                          ),
                         ),
                       if (online != null)
                         FilledButton.tonalIcon(
@@ -176,31 +187,35 @@ class _EntryDetailsState extends State<EntryDetails> {
                             ),
                           ),
                           icon: const Icon(Icons.language),
-                          label: Text(game ? 'Jogar online' : 'Abrir online'),
+                          label: Text(
+                            game
+                                ? context.messages.playOnline
+                                : context.messages.openOnline,
+                          ),
                         ),
                       if (Library.isWebLink(entry.downloadUrl))
                         OutlinedButton.icon(
                           onPressed: () => _openLink(entry.downloadUrl),
                           icon: const Icon(Icons.download_outlined),
-                          label: const Text('Baixar'),
+                          label: Text(context.messages.download),
                         ),
                       if (Library.isWebLink(entry.repositoryUrl))
                         OutlinedButton.icon(
                           onPressed: () => _openLink(entry.repositoryUrl),
                           icon: const Icon(Icons.code),
-                          label: const Text('Repositório'),
+                          label: Text(context.messages.repository),
                         ),
                     ],
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Descrição',
+                    context.messages.description,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
                   SelectableText(
                     entry.description.isEmpty
-                        ? 'Nenhuma descrição cadastrada.'
+                        ? context.messages.noDescription
                         : entry.description,
                     style: const TextStyle(color: dashboardMuted, height: 1.5),
                   ),
