@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-21T18:26:07.535736+00:00",
+  "repositories": {
+    "bigevilmods/bigevil-launcher": {
+      "tag_name": "1.0",
+      "published_at": "2026-11-21T14:28:55Z",
+      "assets": [
+        {
+          "id": 775837525,
+          "name": "BigEvil-Launcher-windows-x64-portable.zip",
+          "state": "uploaded",
+          "size": 15348144,
+          "digest": "sha256:bc8689462c4a83b19ad3467d0c6aaa98646de6fc1d6b107c256e45610541d70f",
+          "browser_download_url": "https://github.com/bigevilmods/BigEvil-Launcher/releases/download/1.0/BigEvil-Launcher-windows-x64-portable.zip"
+        },
+        {
+          "id": 775837422,
+          "name": "BigEvil-Launcher-windows-x64.exe",
+          "state": "uploaded",
+          "size": 12105909,
+          "digest": "sha256:56237032d66756fc58473b684ca9b983a1b54dc14746ff171f978afd931e2795",
+          "browser_download_url": "https://github.com/bigevilmods/BigEvil-Launcher/releases/download/1.0/BigEvil-Launcher-windows-x64.exe"
+        }
+      ]
+    },
+    "bigevilmods/final-fantasy-nse-recomp": {
+      "tag_name": "1.0",
+      "published_at": "2026-11-21T15:56:36Z",
+      "assets": [
+        {
+          "id": 776071633,
+          "name": "FF-NES-Windows-x64.zip",
+          "state": "uploaded",
+          "size": 6572953,
+          "digest": "sha256:cb9ce7b2eaa364c23e090c4bf82b49e10faa5b6df3214bf8e7e625846cf66902",
+          "browser_download_url": "https://github.com/bigevilmods/FInal-Fantasy-NSE-Recomp/releases/download/1.0/FF-NES-Windows-x64.zip"
+        }
+      ]
+    },
+    "bigevilmods/streamit": {
+      "tag_name": "release",
+      "published_at": "2026-11-21T17:28:58Z",
+      "assets": [
+        {
+          "id": 776319641,
+          "name": "Streamit-Setup-1.0.0-win-x64.exe",
+          "state": "uploaded",
+          "size": 135505781,
+          "digest": "sha256:67b4bb7c5473462af0945513829c92f3fbf2ad2fa9ba0327b86d17c76cbec678",
+          "browser_download_url": "https://github.com/bigevilmods/Streamit/releases/download/release/Streamit-Setup-1.0.0-win-x64.exe"
+        },
+        {
+          "id": 776320517,
+          "name": "win-portable.zip",
+          "state": "uploaded",
+          "size": 177770542,
+          "digest": "sha256:033fbe5df2f34b12ca22d31ec34d9d01b8b0f0e31e1868518c47132dbda51977",
+          "browser_download_url": "https://github.com/bigevilmods/Streamit/releases/download/release/win-portable.zip"
+        }
+      ]
+    }
+  }
+}
