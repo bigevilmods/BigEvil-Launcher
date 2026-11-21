@@ -1,0 +1,10 @@
+.dart_tool/
+.flutter-plugins-dependencies
+.idea/
+build/
+.metadata
+dist/
+/android/
+/windows/
+/linux/
+**/__pycache__/

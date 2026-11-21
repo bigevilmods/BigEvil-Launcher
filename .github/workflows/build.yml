@@ -1,0 +1,122 @@
+name: Build e release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test integration_test
+      - run: flutter analyze lib test integration_test
+      - run: flutter test
+      - run: dart run test/filter_benchmark.dart
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: windows, os: windows-2025}
+          - {platform: linux, os: ubuntu-22.04}
+          - {platform: android, os: ubuntu-24.04}
+    runs-on: ${{ matrix.os }}
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          cache: true
+      - if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libwebkit2gtk-4.1-dev
+      - if: matrix.platform == 'windows'
+        run: choco install innosetup --no-progress -y
+      - shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$/\1/p' pubspec.yaml)
+          test -n "$version"
+          if [[ -n "$RELEASE_TAG" && "$RELEASE_TAG" != "v$version" ]]; then
+            echo "A tag precisa corresponder à versão do pubspec.yaml." >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - run: python packaging/prepare.py ${{ matrix.platform }}
+      - run: flutter pub get
+      - if: matrix.platform == 'android'
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          BIGEVIL_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          BIGEVIL_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          BIGEVIL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$RELEASE_TAG" ]]; then
+            : "${KEYSTORE_BASE64:?Configure ANDROID_KEYSTORE_BASE64}"
+            : "${BIGEVIL_STORE_PASSWORD:?Configure ANDROID_STORE_PASSWORD}"
+            : "${BIGEVIL_KEY_PASSWORD:?Configure ANDROID_KEY_PASSWORD}"
+            : "${BIGEVIL_KEY_ALIAS:?Configure ANDROID_KEY_ALIAS}"
+            export BIGEVIL_KEYSTORE="$RUNNER_TEMP/bigevil-release.jks"
+            trap 'rm -f -- "$BIGEVIL_KEYSTORE"' EXIT
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$BIGEVIL_KEYSTORE"
+          fi
+          flutter build apk --release --dart-define="BIGEVIL_VERSION=$VERSION" --dart-define="BIGEVIL_REPOSITORY=$REPOSITORY"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/BigEvil-Launcher-android.apk
+      - if: matrix.platform == 'linux'
+        run: |
+          flutter build linux --release --dart-define="BIGEVIL_VERSION=$VERSION" --dart-define="BIGEVIL_REPOSITORY=$REPOSITORY"
+          bash packaging/linux.sh "$VERSION"
+      - if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          flutter build windows --release --dart-define="BIGEVIL_VERSION=$env:VERSION" --dart-define="BIGEVIL_REPOSITORY=$env:REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./packaging/windows.ps1 -Version "$env:VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bigevil-${{ matrix.platform }}
+          path: dist/BigEvil-Launcher-*
+          if-no-files-found: error
+  release:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bigevil-*
+          merge-multiple: true
+          path: dist
+      - run: gh release create "$TAG" dist/BigEvil-Launcher-* --verify-tag --generate-notes --latest
