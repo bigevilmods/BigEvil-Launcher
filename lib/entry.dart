@@ -15,7 +15,9 @@ class Entry {
     this.androidPackage = '',
     this.windowsUninstallKey = '',
     this.linuxPackage = '',
-  }) : searchKey = '$name $target $developer'.toLowerCase();
+    Iterable<String> platforms = const [],
+  }) : platforms = List.unmodifiable(_platforms(platforms)),
+       searchKey = '$name $target $developer'.toLowerCase();
 
   final String name;
   final String target;
@@ -30,6 +32,7 @@ class Entry {
   final String androidPackage;
   final String windowsUninstallKey;
   final String linuxPackage;
+  final List<String> platforms;
   final String searchKey;
 
   factory Entry.fromJson(Map<String, dynamic> json) => Entry(
@@ -46,9 +49,22 @@ class Entry {
     androidPackage: json['androidPackage'] as String? ?? '',
     windowsUninstallKey: json['windowsUninstallKey'] as String? ?? '',
     linuxPackage: json['linuxPackage'] as String? ?? '',
+    platforms: switch (json['plataforma']) {
+      final String name => [name],
+      final List values => values.whereType<String>(),
+      _ => const [],
+    },
   );
 
-  Map<String, String> toJson() => {
+  static Iterable<String> _platforms(Iterable<String> names) sync* {
+    final seen = <String>{};
+    for (final name in names) {
+      final label = name.trim();
+      if (label.isNotEmpty && seen.add(label.toLowerCase())) yield label;
+    }
+  }
+
+  Map<String, Object> toJson() => {
     'name': name,
     'target': target,
     'kind': kind.name,
@@ -63,17 +79,24 @@ class Entry {
     if (windowsUninstallKey.isNotEmpty)
       'windowsUninstallKey': windowsUninstallKey,
     if (linuxPackage.isNotEmpty) 'linuxPackage': linuxPackage,
+    if (platforms.isNotEmpty) 'plataforma': platforms,
   };
 }
 
 Iterable<Entry> filterEntries(
   Iterable<Entry> entries,
   String text,
-  Kind? kind,
-) {
+  Kind? kind, {
+  String? platform,
+}) {
   final query = text.trim().toLowerCase();
+  final platformKey = platform?.toLowerCase();
   return entries.where(
     (entry) =>
-        (kind == null || entry.kind == kind) && entry.searchKey.contains(query),
+        (kind == null || entry.kind == kind) &&
+        (platformKey == null ||
+            entry.platforms.any((name) => name.toLowerCase() == platformKey)) &&
+        (entry.searchKey.contains(query) ||
+            entry.platforms.any((name) => name.toLowerCase().contains(query))),
   );
 }

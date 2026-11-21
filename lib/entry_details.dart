@@ -1,7 +1,11 @@
+import 'dart:ffi' show Abi;
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 
 import 'dashboard.dart';
 import 'entry_status.dart';
+import 'item_download.dart';
 import 'library.dart';
 import 'localization.dart';
 import 'online_browser.dart';
@@ -13,11 +17,13 @@ class EntryDetails extends StatefulWidget {
     required this.entry,
     required this.onOpen,
     this.onEdit,
+    this.onDownloaded,
   });
 
   final Entry entry;
   final Future<void> Function(Entry) onOpen;
   final Future<Entry?> Function(Entry)? onEdit;
+  final ValueChanged<Entry>? onDownloaded;
 
   @override
   State<EntryDetails> createState() => _EntryDetailsState();
@@ -27,14 +33,31 @@ class _EntryDetailsState extends State<EntryDetails> {
   late Entry _entry = widget.entry;
   late final AppLifecycleListener _lifecycle;
   Future<String?>? _installation;
-  Future<String?>? _release;
+  Future<Map<String, dynamic>?>? _release;
   String? _repository;
+  bool _downloading = false;
+  double? _downloadProgress;
+  String? _downloadPath;
 
   @override
   void initState() {
     super.initState();
     _checkStatus();
-    _lifecycle = AppLifecycleListener(onResume: () => setState(_checkStatus));
+    _refreshDownload();
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        setState(_checkStatus);
+        _refreshDownload();
+      },
+    );
+  }
+
+  Future<void> _refreshDownload() async {
+    final entry = _entry;
+    final path = await Updater.savedItemPath(entry);
+    if (mounted && !_downloading && identical(entry, _entry)) {
+      setState(() => _downloadPath = path);
+    }
   }
 
   @override
@@ -47,12 +70,81 @@ class _EntryDetailsState extends State<EntryDetails> {
     _installation = EntryStatus.hasInstallationId(_entry)
         ? EntryStatus.installedVersion(_entry)
         : null;
-    final repository = _repository = EntryStatus.repository(
-      _entry.repositoryUrl,
-    );
-    _release = repository == null
+    final repository = _repository =
+        EntryStatus.repository(_entry.repositoryUrl) ??
+        EntryStatus.repository(_entry.downloadUrl);
+    _release = repository == null ? null : Updater.latestRelease(repository);
+  }
+
+  Future<void> _downloadItem() async {
+    if (_downloading) return;
+    final repository = _repository;
+    final entry = _entry;
+    final onDownloaded = widget.onDownloaded;
+    setState(() {
+      _downloading = true;
+      _downloadProgress = null;
+    });
+    try {
+      void progress(double? value) {
+        if (mounted) setState(() => _downloadProgress = value);
+      }
+
+      final direct = Library.webUri(_entry.downloadUrl);
+      final file = repository == null
+          ? await Updater.downloadItem(
+              entry,
+              direct!,
+              direct.pathSegments.lastWhere(
+                (part) => part.isNotEmpty,
+                orElse: () => 'download',
+              ),
+              progress,
+            )
+          : await _downloadRelease(entry, repository, progress);
+      if (mounted && identical(entry, _entry)) {
+        setState(() => _downloadPath = file.path);
+      }
+      onDownloaded?.call(entry);
+    } catch (error) {
+      if (mounted) {
+        final messages = context.messages;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              messages.itemDownloadFailed(localizedError(messages, error)),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  Future<File> _downloadRelease(
+    Entry entry,
+    String repository,
+    void Function(double?) progress,
+  ) async {
+    final check = Updater.latestRelease(repository);
+    setState(() => _release = check);
+    final release = await check;
+    final package = release == null
         ? null
-        : EntryStatus.latestVersion(repository);
+        : selectItemPackage(release, repository, Abi.current());
+    if (package == null) {
+      throw LocalizedFailure((messages) => messages.noItemPackage);
+    }
+    return Updater.downloadItem(
+      entry,
+      package.url,
+      package.name,
+      progress,
+      size: package.size,
+      digest: package.digest,
+      github: true,
+    );
   }
 
   Future<void> _edit() async {
@@ -60,8 +152,10 @@ class _EntryDetailsState extends State<EntryDetails> {
     if (edited != null && mounted) {
       setState(() {
         _entry = edited;
+        _downloadPath = null;
         _checkStatus();
       });
+      _refreshDownload();
     }
   }
 
@@ -69,14 +163,14 @@ class _EntryDetailsState extends State<EntryDetails> {
     final messages = context.messages;
     return FutureBuilder<String?>(
       future: _installation,
-      builder: (context, installation) => FutureBuilder<String?>(
+      builder: (context, installation) => FutureBuilder<Map<String, dynamic>?>(
         future: _release,
         builder: (context, release) {
           final installed = installation.connectionState == ConnectionState.done
               ? installation.data
               : null;
           final latest = release.connectionState == ConnectionState.done
-              ? release.data
+              ? EntryStatus.releaseTag(release.data)
               : null;
           return Wrap(
             spacing: 12,
@@ -106,20 +200,8 @@ class _EntryDetailsState extends State<EntryDetails> {
                   }),
                 ),
               if (latest != null)
-                OutlinedButton.icon(
-                  onPressed: () => _openLink(
-                    Uri(
-                      scheme: 'https',
-                      host: 'github.com',
-                      pathSegments: [
-                        ..._repository!.split('/'),
-                        'releases',
-                        'tag',
-                        latest,
-                      ],
-                    ).toString(),
-                  ),
-                  icon: const Icon(Icons.new_releases_outlined),
+                Chip(
+                  avatar: const Icon(Icons.new_releases_outlined),
                   label: Text(
                     installed != null && isNewer(latest, installed)
                         ? messages.itemUpdateAvailable(latest)
@@ -264,6 +346,19 @@ class _EntryDetailsState extends State<EntryDetails> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  if (entry.platforms.isNotEmpty) ...[
+                    Text(context.messages.platform),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        for (final platform in entry.platforms)
+                          Chip(label: Text(platform)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   if (_installation != null || _release != null) ...[
                     _status(),
                     const SizedBox(height: 12),
@@ -274,7 +369,9 @@ class _EntryDetailsState extends State<EntryDetails> {
                     children: [
                       if (entry.target.isNotEmpty)
                         FilledButton.icon(
-                          onPressed: () => widget.onOpen(entry),
+                          onPressed: game && _downloadPath == null
+                              ? null
+                              : () => widget.onOpen(entry),
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: Text(
                             game
@@ -299,9 +396,10 @@ class _EntryDetailsState extends State<EntryDetails> {
                                 : context.messages.openOnline,
                           ),
                         ),
-                      if (Library.isWebLink(entry.downloadUrl))
+                      if (_repository != null ||
+                          Library.webUri(entry.downloadUrl)?.scheme == 'https')
                         OutlinedButton.icon(
-                          onPressed: () => _openLink(entry.downloadUrl),
+                          onPressed: _downloading ? null : _downloadItem,
                           icon: const Icon(Icons.download_outlined),
                           label: Text(context.messages.download),
                         ),
@@ -313,6 +411,14 @@ class _EntryDetailsState extends State<EntryDetails> {
                         ),
                     ],
                   ),
+                  if (_downloading) ...[
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(value: _downloadProgress),
+                  ],
+                  if (_downloadPath case final path?) ...[
+                    const SizedBox(height: 12),
+                    SelectableText(context.messages.itemDownloadSaved(path)),
+                  ],
                   const SizedBox(height: 24),
                   Text(
                     context.messages.description,

@@ -72,8 +72,7 @@ class EntryStatus {
     return null;
   }
 
-  static Future<String?> latestVersion(String repository) async {
-    final release = await Updater.latestRelease(repository);
+  static String? releaseTag(Map<String, dynamic>? release) {
     final tag = release?['tag_name'];
     return tag is String &&
             tag.isNotEmpty &&

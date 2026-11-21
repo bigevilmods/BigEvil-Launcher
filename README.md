@@ -4,7 +4,7 @@ BigEvil Launcher displays a shared catalog of games and apps with an adaptive in
 
 Use the language picker in the top bar to switch between Brazilian Portuguese, English, and Spanish without restarting. The launcher saves your choice on this device. **System language** follows your system settings and uses Brazilian Portuguese when your language is outside the supported list. Library entries and website content are displayed in their original language.
 
-Select an item's cover to open its details page. **Download** opens the URL in your default browser. **Play online** opens the web version inside the launcher.
+Select an item's cover to open its details page. **Download** saves the file from within the launcher and displays its path. For games with a target, **Play** becomes available once a completed download is present. **Play online** appears when the catalog entry has a valid `onlineUrl` and opens the web version inside the launcher.
 
 The built-in browser uses Android System WebView, Microsoft Edge WebView2 on Windows, and WebKitGTK 4.1 on Linux. The launcher starts a browser session when you open an online item and closes it when you return to the library. Use HTTPS on Android. The compatibility button checks WebAssembly, WebGL, WebGL 2, Canvas 2D, Web Audio, and optional features on the current page. Availability depends on the browser engine version, the device's graphics support, and the page's policies.
 
@@ -23,6 +23,7 @@ The launcher reads the [online catalog](https://raw.githubusercontent.com/bigevi
   {
     "name": "Example game",
     "kind": "game",
+    "plataforma": ["Windows", "Linux", "Android"],
     "description": "A short description of the game.",
     "developer": "Example Studio",
     "coverPath": "https://example.com/cover.webp",
@@ -37,6 +38,10 @@ The launcher reads the [online catalog](https://raw.githubusercontent.com/bigevi
 
 `name` and `kind` are required. Use `game` or `app` for `kind`. The other fields are optional. Use public HTTPS URLs for images and links.
 
+`plataforma` is an optional list of names. Add only the platforms that apply to the item. A single string is also accepted. The platform tags appear on cards and in the details view. The library filter lists platforms used by catalog entries, and the search field matches platform names. Use [platforms.json](platforms.json) as a reference for operating systems, console families, handhelds, and regional systems. The catalog can introduce additional names without an app update. Platform tags describe items and do not change how the launcher selects downloads.
+
+Historical references include the [Smithsonian video game collection](https://www.si.edu/spotlight/the-father-of-the-video-game-the-ralph-baer-prototypes-and-electronic-games/video-game-history), the [Computer History Museum console exhibit](https://computerhistory.org/blog/game-on/), and the [University of Michigan game systems archive](https://www.lib.umich.edu/locations-and-hours/computer-and-video-game-archive/use-archive/game-systems/).
+
 The launcher checks installation status and the latest stable release when you open an item's details or return to the app. Set `repositoryUrl` to the item's public GitHub repository to enable the release check. Add the installation identifiers for the item's supported platforms:
 
 | Field | Identifier |
@@ -45,7 +50,9 @@ The launcher checks installation status and the latest stable release when you o
 | `windowsUninstallKey` | Registry subkey under `Software\Microsoft\Windows\CurrentVersion\Uninstall`. Both user and system registrations are checked. |
 | `linuxPackage` | Debian package name recorded by `dpkg`, such as `example-game`. |
 
-The details page links to the latest release. When the installed version and the release tag both use `major.minor.patch` with an optional `v` prefix, it flags a newer version as an available update.
+The details page shows the latest release. When the installed version and the release tag both use `major.minor.patch` with an optional `v` prefix, it flags a newer version as an available update.
+
+For a GitHub item, **Download** looks up the latest stable release and selects an uploaded asset for the current operating system and architecture. Use APK for Android, MSI or EXE for Windows, and DEB, AppImage or RPM for Linux. A ZIP can be selected when its name identifies Windows or Linux. Linux archives can also use `.tar.gz`, `.tar.xz`, `.tar.bz2`, `.tar.zst` or `.tgz` with `linux` in the name. Include an architecture marker such as `x64`, `arm64` or `armeabi-v7a` for builds that target a specific architecture. The launcher checks the reported file size and verifies SHA-256 when GitHub supplies it. For other repositories, set `downloadUrl` to a direct HTTPS file link. Item downloads are limited to 10 GiB.
 
 Web games can use the [input SDK](sdk/README.md) for keyboard, gamepad and on-screen controls. The browser's compatibility dialog reports input support. On Android, the Bluetooth button opens system pairing settings.
 
@@ -81,7 +88,7 @@ When testing version 1.0.0 on Windows x64, the microbenchmark compiled with `dar
 
 1. Host the code in a public GitHub repository. Configure the `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, and `ANDROID_KEY_ALIAS` secrets. Use the same Android signing key across releases.
 2. Update `version` in `pubspec.yaml`. Increase the number after `+` for each Android release. Push a tag that matches the version without its build number, such as `v1.1.0` for `1.1.0+2`.
-3. The workflow builds all three platforms and publishes the release after all jobs pass. It embeds the repository and version in the binary. Local builds use `bigevilmods/BigEvil-Launcher` by default. Set `--dart-define=BIGEVIL_VERSION=1.3.0` to match the version being built. To use a different repository, set `--dart-define=BIGEVIL_REPOSITORY=owner/repository` when building or enter it in the launcher's update settings. Clearing the field restores the build's default repository.
+3. The workflow builds all three platforms and publishes the release after all jobs pass. It embeds the repository and version in the binary. Local builds use `bigevilmods/BigEvil-Launcher` by default. Set `--dart-define=BIGEVIL_VERSION=1.3.0` to match the version being built. To use a different repository, set `--dart-define=BIGEVIL_REPOSITORY=owner/repository` when building. Repository overrides saved by older versions are still read.
 
 The launcher checks the repository for a stable release at startup and every six hours while it is open. When it finds a newer version, it automatically downloads the package for your platform and verifies its size and the SHA-256 checksum provided by GitHub. **Install** opens the system installer. On Android, the system may ask you to allow installation from this source. On Linux, open the DEB in your distribution's package manager. If no graphical package manager is associated with DEB files, the launcher displays the package path so you can run `sudo apt install /path/to/BigEvil-Launcher-linux-x64.deb`.
 

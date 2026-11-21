@@ -2,6 +2,7 @@
     {
     "name": "Final Fantasy NSE Recomp",
     "kind": "game",
+    "plataforma": ["Windows"],
     "description": "A short description of the game.",
     "developer": "BigEvil",
     "coverPath": "https://example.com/cover.webp",

@@ -1,8 +1,10 @@
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:bigevil_launcher/dashboard.dart';
 import 'package:bigevil_launcher/entry_details.dart';
 import 'package:bigevil_launcher/entry_status.dart';
+import 'package:bigevil_launcher/item_download.dart';
 import 'package:bigevil_launcher/library.dart';
 import 'package:bigevil_launcher/main.dart';
 import 'package:bigevil_launcher/updates.dart';
@@ -146,6 +148,27 @@ void main() {
     );
   });
 
+  test('catalog platform tags round-trip and filter case-insensitively', () {
+    final entries = Library.parseCatalog('''
+      [
+        {"name":"Game","kind":"game","plataforma":[" Windows ","windows","Sega Dreamcast"]},
+        {"name":"App","kind":"app","plataforma":"Android"},
+        {"name":"Classic","kind":"game"}
+      ]
+    ''');
+    expect(entries.first.platforms, ['Windows', 'Sega Dreamcast']);
+    expect(
+      Entry.fromJson(entries.first.toJson()).platforms,
+      entries.first.platforms,
+    );
+    expect(entries.last.platforms, isEmpty);
+    expect(filterEntries(entries, 'dreamcast', null), [entries.first]);
+    expect(filterEntries(entries, '', Kind.game, platform: 'windows'), [
+      entries.first,
+    ]);
+    expect(filterEntries(entries, '', Kind.game, platform: 'Android'), isEmpty);
+  });
+
   test('release selection ignores old and prerelease builds', () {
     expect(isNewer('v1.10.0', '1.9.9'), isTrue);
     expect(isNewer('v1.0.0', '1.0.0'), isFalse);
@@ -161,7 +184,36 @@ void main() {
     );
   });
 
-  testWidgets('details render stored metadata and offline and online actions', (
+  test('item releases select only a package for the current platform', () {
+    Map<String, Object> asset(String name, {String host = 'github.com'}) => {
+      'name': name,
+      'state': 'uploaded',
+      'size': 1024,
+      'browser_download_url':
+          'https://$host/Demo/Game/releases/download/v2/$name',
+    };
+    final release = {
+      'tag_name': 'v2',
+      'assets': [
+        asset('game-windows-arm64.msi'),
+        asset('game-windows-x64.msi', host: 'example.org'),
+        asset('game-windows-x64.exe'),
+        asset('game-linux-arm64.deb'),
+        asset('game-linux-x86_64.AppImage'),
+        asset('game-android-arm64-v8a.apk'),
+        asset('game-android.apk'),
+      ],
+    };
+    String? select(Abi abi) =>
+        selectItemPackage(release, 'demo/game', abi)?.name;
+    expect(select(Abi.windowsX64), 'game-windows-x64.exe');
+    expect(select(Abi.linuxX64), 'game-linux-x86_64.AppImage');
+    expect(select(Abi.androidArm64), 'game-android-arm64-v8a.apk');
+    expect(select(Abi.androidIA32), 'game-android.apk');
+    expect(select(Abi.macosArm64), isNull);
+  });
+
+  testWidgets('details gate local play and require an online URL', (
     tester,
   ) async {
     final entry = Entry(
@@ -173,33 +225,40 @@ void main() {
       repositoryUrl: 'https://github.com/demo/race',
       downloadUrl: 'https://example.org/race.zip',
       onlineUrl: 'https://example.org/play',
+      platforms: ['Windows', 'Sega Dreamcast'],
       backgroundPath: null,
     );
     expect(Entry.fromJson(entry.toJson()).toJson(), entry.toJson());
     expect(filterEntries([entry], 'studio', null), [entry]);
     expect(Library.webUri('javascript:alert(1)'), isNull);
     Entry? opened;
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('pt', 'BR'),
-        supportedLocales: InterfaceLanguage.supportedLocales,
-        localizationsDelegates: const [
-          Messages.delegate,
-          ...GlobalMaterialLocalizations.delegates,
-        ],
-        home: EntryDetails(
-          entry: entry,
-          onOpen: (value) async => opened = value,
-        ),
+    Widget details(Entry item) => MaterialApp(
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: InterfaceLanguage.supportedLocales,
+      localizationsDelegates: const [
+        Messages.delegate,
+        ...GlobalMaterialLocalizations.delegates,
+      ],
+      home: EntryDetails(
+        key: ValueKey(item),
+        entry: item,
+        onOpen: (value) async => opened = value,
       ),
     );
+    await tester.pumpWidget(details(entry));
     expect(find.text('Studio'), findsOneWidget);
     expect(find.text('Pistas para corrida.'), findsOneWidget);
     expect(find.text('Repositório'), findsOneWidget);
     expect(find.text('Baixar'), findsOneWidget);
     expect(find.text('Jogar online'), findsOneWidget);
-    await tester.tap(find.text('Jogar'));
-    expect(opened, same(entry));
+    expect(find.text('Sega Dreamcast'), findsOneWidget);
+    final play = find.widgetWithText(FilledButton, 'Jogar');
+    expect(tester.widget<FilledButton>(play).onPressed, isNull);
+    expect(opened, isNull);
+    await tester.pumpWidget(
+      details(Entry('Corrida', '/games/race', Kind.game)),
+    );
+    expect(find.text('Jogar online'), findsNothing);
   });
 
   test('release rejects wrong host, missing digest and unbounded packages', () {
@@ -267,9 +326,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop gallery scrolls and launches the selected game', (
-    tester,
-  ) async {
+  testWidgets('desktop gallery launches only downloaded games', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final entries = List.generate(
@@ -302,6 +359,7 @@ void main() {
                   entries: entries,
                   hasSearch: false,
                   onOpen: (entry) => opened = entry,
+                  canPlay: (entry) => entry == entries.first,
                 ),
               ),
             ],
@@ -311,6 +369,8 @@ void main() {
     );
     await tester.tap(find.text('Aplicativos'));
     expect(selected, Kind.app);
+    final playButtons = find.widgetWithText(TextButton, 'Jogar');
+    expect(tester.widget<TextButton>(playButtons.at(1)).onPressed, isNull);
     await tester.tap(find.text('Jogar').first);
     expect(opened, same(entries.first));
     final gallery = tester.state<ScrollableState>(find.byType(Scrollable));

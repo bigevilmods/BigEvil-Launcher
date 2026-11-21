@@ -88,13 +88,15 @@ class Launcher extends StatefulWidget {
 
 class _LauncherState extends State<Launcher> {
   List<Entry> _entries = [];
+  final Set<Entry> _downloadedGames = {};
   String _query = '';
   String _repository = '';
   Kind? _filter;
+  String? _platformFilter;
   bool _loading = true;
   bool _loadFailed = false;
   bool _checking = false;
-  bool _editingRepository = false;
+  bool _updateDialogOpen = false;
   String? _updateVersion;
   Object? _updateFailure;
   bool _changingLanguage = false;
@@ -154,9 +156,20 @@ class _LauncherState extends State<Launcher> {
     setState(() => _loading = true);
     try {
       final entries = await Library.load();
+      final downloaded = await Future.wait(
+        entries
+            .where((entry) => entry.kind == Kind.game)
+            .map(
+              (entry) async =>
+                  await Updater.savedItemPath(entry) == null ? null : entry,
+            ),
+      );
       if (mounted)
         setState(() {
           _entries = entries;
+          _downloadedGames
+            ..clear()
+            ..addAll(downloaded.whereType<Entry>());
           _loadFailed = false;
           _loading = false;
         });
@@ -194,7 +207,7 @@ class _LauncherState extends State<Launcher> {
   }
 
   Future<void> _check({bool manual = false}) async {
-    if (!mounted || _checking || _editingRepository || _repository.isEmpty) {
+    if (!mounted || _checking || _updateDialogOpen || _repository.isEmpty) {
       return;
     }
     setState(() {
@@ -231,81 +244,57 @@ class _LauncherState extends State<Launcher> {
   }
 
   Future<void> _settings() async {
-    if (_checking || _editingRepository) return;
-    setState(() => _editingRepository = true);
-    var value = _repository;
-    final repository = await showDialog<String>(
+    if (_checking || _updateDialogOpen) return;
+    _updateDialogOpen = true;
+    final verify = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          scrollable: true,
-          title: Text(context.messages.updates),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(context.messages.versionLabel(currentVersion)),
-              const SizedBox(height: 16),
-              TextFormField(
-                initialValue: value,
-                onChanged: (text) => value = text.trim(),
-                decoration: InputDecoration(
-                  labelText: context.messages.publicRepo,
-                  hintText: context.messages.repoPlaceholder,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(context.messages.updateHelp),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.messages.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, value),
-              child: Text(context.messages.saveAndCheck),
-            ),
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: Text(context.messages.updates),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(context.messages.versionLabel(currentVersion)),
+            const SizedBox(height: 12),
+            Text(context.messages.updateHelp),
           ],
-        );
-      },
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.messages.checkForUpdates),
+          ),
+        ],
+      ),
     );
-    if (!mounted) return;
-    setState(() => _editingRepository = false);
-    if (repository == null) return;
-    if (repository.isNotEmpty && !repositoryPattern.hasMatch(repository)) {
-      _notify((messages) => messages.repoFormat);
-      return;
-    }
-    try {
-      await Updater.saveRepository(repository);
-      if (!mounted) return;
-      setState(() {
-        _repository = Updater.resolveRepository(repository);
-        _package = null;
-        _updateVersion = null;
-        _updateFailure = null;
-      });
-      await _check(manual: true);
-    } catch (error) {
-      _notify(
-        (messages) =>
-            messages.settingsSaveError(localizedError(messages, error)),
-      );
-    }
+    _updateDialogOpen = false;
+    if (mounted && verify == true) await _check(manual: true);
   }
 
   void _showDetails(Entry entry) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => EntryDetails(entry: entry, onOpen: _open),
+        builder: (_) => EntryDetails(
+          entry: entry,
+          onOpen: _open,
+          onDownloaded: (item) {
+            if (mounted && item.kind == Kind.game) {
+              setState(() => _downloadedGames.add(item));
+            }
+          },
+        ),
       ),
     );
   }
 
   Future<void> _open(Entry entry) async {
     try {
+      if (entry.kind == Kind.game &&
+          await Updater.savedItemPath(entry) == null) {
+        if (mounted) setState(() => _downloadedGames.remove(entry));
+        return;
+      }
       await Library.open(entry);
     } catch (error) {
       _notify(
@@ -329,10 +318,18 @@ class _LauncherState extends State<Launcher> {
 
   @override
   Widget build(BuildContext context) {
+    final platforms =
+        {
+            for (final entry in _entries)
+              for (final platform in entry.platforms)
+                platform.toLowerCase(): platform,
+          }.values.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final matches = filterEntries(
       _entries,
       _query,
       _filter,
+      platform: _platformFilter,
     ).toList(growable: false);
     final settings = _checking ? null : _settings;
     final updateMessage = switch ((_updateFailure, _updateVersion)) {
@@ -454,6 +451,44 @@ class _LauncherState extends State<Launcher> {
                               ),
                             ],
                           ),
+                          if (platforms.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            PopupMenuButton<String>(
+                              initialValue: _platformFilter ?? '',
+                              tooltip: context.messages.platform,
+                              onSelected: (value) => setState(
+                                () => _platformFilter = value.isEmpty
+                                    ? null
+                                    : value,
+                              ),
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: '',
+                                  child: Text(context.messages.allPlatforms),
+                                ),
+                                for (final platform in platforms)
+                                  PopupMenuItem(
+                                    value: platform,
+                                    child: Text(platform),
+                                  ),
+                              ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.devices, size: 18),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      _platformFilter ??
+                                          context.messages.allPlatforms,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -511,8 +546,11 @@ class _LauncherState extends State<Launcher> {
                                     entries: matches
                                         .where((entry) => entry.kind == kind)
                                         .toList(growable: false),
-                                    hasSearch: _query.trim().isNotEmpty,
+                                    hasSearch:
+                                        _query.trim().isNotEmpty ||
+                                        _platformFilter != null,
                                     onOpen: _open,
+                                    canPlay: _downloadedGames.contains,
                                     onDetails: _showDetails,
                                   ),
                                 ),

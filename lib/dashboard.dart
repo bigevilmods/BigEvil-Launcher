@@ -169,6 +169,7 @@ class DashboardGallery extends StatefulWidget {
     required this.entries,
     required this.hasSearch,
     required this.onOpen,
+    this.canPlay,
     this.onDetails,
     this.onAdd,
     this.onEdit,
@@ -179,6 +180,7 @@ class DashboardGallery extends StatefulWidget {
   final List<Entry> entries;
   final bool hasSearch;
   final ValueChanged<Entry> onOpen;
+  final bool Function(Entry)? canPlay;
   final ValueChanged<Entry>? onDetails;
   final VoidCallback? onAdd;
   final ValueChanged<Entry>? onEdit;
@@ -309,6 +311,7 @@ class _DashboardGalleryState extends State<DashboardGallery> {
                                 child: DashboardCard(
                                   entry: entry,
                                   onOpen: () => widget.onOpen(entry),
+                                  canPlay: widget.canPlay?.call(entry) ?? false,
                                   onDetails: widget.onDetails == null
                                       ? null
                                       : () => widget.onDetails!(entry),
@@ -393,6 +396,7 @@ class DashboardCard extends StatelessWidget {
     super.key,
     required this.entry,
     required this.onOpen,
+    this.canPlay = false,
     this.onDetails,
     this.onEdit,
     this.onRemove,
@@ -400,6 +404,7 @@ class DashboardCard extends StatelessWidget {
 
   final Entry entry;
   final VoidCallback onOpen;
+  final bool canPlay;
   final VoidCallback? onDetails;
   final VoidCallback? onEdit;
   final VoidCallback? onRemove;
@@ -527,6 +532,19 @@ class DashboardCard extends StatelessWidget {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
+                          if (entry.platforms.isNotEmpty)
+                            Tooltip(
+                              message: entry.platforms.join(' · '),
+                              child: Text(
+                                entry.platforms.join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: dashboardMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
                           if (!games && hasTarget)
                             Tooltip(
                               message: entry.target,
@@ -559,7 +577,7 @@ class DashboardCard extends StatelessWidget {
                             gradient: dashboardGradient,
                           ),
                           child: TextButton(
-                            onPressed: onOpen,
+                            onPressed: canPlay ? onOpen : null,
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xff101824),
                               textStyle: const TextStyle(

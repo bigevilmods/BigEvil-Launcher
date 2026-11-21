@@ -21,6 +21,7 @@ const defaultRepository = String.fromEnvironment(
 final repositoryPattern = RegExp(r'^[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$');
 final versionPattern = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$');
 const maximumPackageBytes = 512 * 1024 * 1024;
+const maximumItemBytes = 10 * 1024 * 1024 * 1024;
 
 bool isNewer(String candidate, String installed) {
   final next = versionPattern.firstMatch(candidate);
@@ -104,12 +105,6 @@ class Updater {
     return resolveRepository(saved);
   }
 
-  static Future<void> saveRepository(String value) async {
-    final file = await _settings();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(value, flush: true);
-  }
-
   static HttpClient _client() => HttpClient()
     ..connectionTimeout = const Duration(seconds: 12)
     ..userAgent = 'BigEvil-Launcher/$currentVersion';
@@ -173,15 +168,123 @@ class Updater {
       progress(1);
       return output;
     }
-    final staging = await directory.createTemp('.download-');
+    return _download(
+      release.url,
+      output,
+      progress,
+      size: release.size,
+      digest: release.digest,
+      github: true,
+      limit: maximumPackageBytes,
+    );
+  }
+
+  static Future<File> downloadItem(
+    Entry entry,
+    Uri address,
+    String name,
+    void Function(double?) progress, {
+    int? size,
+    String? digest,
+    bool github = false,
+  }) async {
+    if (!isDownloadName(name) || !_allowedDownloadUrl(address, github)) {
+      throw LocalizedFailure((messages) => messages.invalidAddress);
+    }
+    final downloads = await _itemDownloads(entry);
+    await downloads.create(recursive: true);
+    final directory = await downloads.createTemp('download-');
+    try {
+      return await _download(
+        address,
+        File('${directory.path}/$name'),
+        progress,
+        size: size,
+        digest: digest,
+        github: github,
+        limit: maximumItemBytes,
+      );
+    } catch (_) {
+      await directory.delete();
+      rethrow;
+    }
+  }
+
+  static Future<Directory> _itemDownloads(Entry entry) async {
+    final root =
+        await getDownloadsDirectory() ?? await getApplicationSupportDirectory();
+    final key = sha256.convert(
+      utf8.encode(
+        jsonEncode([
+          entry.kind.name,
+          entry.name,
+          entry.repositoryUrl,
+          entry.downloadUrl,
+        ]),
+      ),
+    );
+    return Directory('${root.path}/BigEvil Launcher/$key');
+  }
+
+  static Future<String?> savedItemPath(Entry entry) async {
+    try {
+      final directory = await _itemDownloads(entry);
+      if (!await directory.exists()) return null;
+      File? latest;
+      DateTime? modified;
+      await for (final transfer in directory.list(followLinks: false)) {
+        if (transfer is! Directory) continue;
+        await for (final item in transfer.list(followLinks: false)) {
+          if (item is! File) continue;
+          final timestamp = await item.lastModified();
+          if (modified == null || timestamp.isAfter(modified)) {
+            latest = item;
+            modified = timestamp;
+          }
+        }
+      }
+      return latest?.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static bool isDownloadName(String name) =>
+      RegExp(r'^[a-zA-Z0-9_][a-zA-Z0-9_.+() -]{0,179}$').hasMatch(name) &&
+      !name.endsWith('.') &&
+      !name.endsWith(' ') &&
+      !RegExp(
+        r'^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)',
+        caseSensitive: false,
+      ).hasMatch(name);
+
+  static bool _allowedDownloadUrl(Uri url, bool github) =>
+      url.scheme == 'https' &&
+      url.host.isNotEmpty &&
+      url.userInfo.isEmpty &&
+      (!github ||
+          url.host == 'github.com' ||
+          url.host.endsWith('.githubusercontent.com'));
+
+  static Future<File> _download(
+    Uri address,
+    File output,
+    void Function(double) progress, {
+    required int? size,
+    required String? digest,
+    required bool github,
+    required int limit,
+  }) async {
+    final staging = await output.parent.createTemp('.download-');
     final partial = File('${staging.path}/package');
     final client = _client();
     try {
-      var url = release.url;
+      var url = address;
       HttpClientResponse? response;
       for (var i = 0; i < 5; i++) {
         final request = await client.getUrl(url);
         request.followRedirects = false;
+        request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
         final result = await request.close().timeout(
           const Duration(seconds: 20),
         );
@@ -198,15 +301,20 @@ class Updater {
         }
         await result.drain<void>().timeout(const Duration(seconds: 10));
         url = url.resolve(location);
-        if (url.scheme != 'https' ||
-            url.userInfo.isNotEmpty ||
-            (url.host != 'github.com' &&
-                !url.host.endsWith('.githubusercontent.com'))) {
+        if (!_allowedDownloadUrl(url, github)) {
           throw LocalizedFailure((messages) => messages.invalidRedirect);
         }
       }
       if (response == null)
         throw LocalizedFailure((messages) => messages.redirectLimit);
+      if (response.headers.contentType?.mimeType == 'text/html') {
+        throw LocalizedFailure((messages) => messages.invalidAddress);
+      }
+      final length = response.contentLength;
+      final expected = size ?? (length >= 0 ? length : null);
+      if (expected == 0 || (expected != null && expected > limit)) {
+        throw LocalizedFailure((messages) => messages.invalidPackageSize);
+      }
       var received = 0;
       final stopwatch = Stopwatch()..start();
       final writer = await partial.open(mode: FileMode.write);
@@ -215,20 +323,22 @@ class Updater {
           const Duration(seconds: 30),
         )) {
           received += chunk.length;
-          if (received > release.size)
+          if (received > (expected ?? limit))
             throw LocalizedFailure((messages) => messages.invalidPackageSize);
           await writer.writeFrom(chunk);
-          if (stopwatch.elapsedMilliseconds >= 100) {
-            progress(received / release.size);
+          if (expected != null && stopwatch.elapsedMilliseconds >= 100) {
+            progress(received / expected);
             stopwatch.reset();
           }
         }
       } finally {
         await writer.close();
       }
-      if (received != release.size ||
-          (await sha256.bind(partial.openRead()).first).toString() !=
-              release.digest) {
+      if (received == 0 ||
+          (expected != null && received != expected) ||
+          (digest != null &&
+              (await sha256.bind(partial.openRead()).first).toString() !=
+                  digest)) {
         throw LocalizedFailure((messages) => messages.invalidChecksum);
       }
       progress(1);

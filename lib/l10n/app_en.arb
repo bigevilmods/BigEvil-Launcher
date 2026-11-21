@@ -94,20 +94,9 @@
       }
     }
   },
-  "publicRepo": "Public repository",
-  "repoPlaceholder": "owner/repository",
-  "updateHelp": "The launcher checks for and downloads new versions in the background. Leave the field empty to use the default repository.",
+  "updateHelp": "The launcher checks for and downloads new versions in the background.",
   "cancel": "Cancel",
-  "saveAndCheck": "Save and check",
-  "repoFormat": "Use the owner/repository format.",
-  "settingsSaveError": "Could not save settings: {error}",
-  "@settingsSaveError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
+  "checkForUpdates": "Check",
   "librarySaveError": "Could not save the library: {error}",
   "@librarySaveError": {
     "placeholders": {
@@ -221,6 +210,13 @@
   "@latestItemRelease": {"placeholders": {"version": {"type": "String"}}},
   "itemUpdateAvailable": "Update available: {version}",
   "@itemUpdateAvailable": {"placeholders": {"version": {"type": "String"}}},
+  "noItemPackage": "The latest release has no compatible package for this device.",
+  "itemDownloadFailed": "Download failed: {error}",
+  "@itemDownloadFailed": {"placeholders": {"error": {"type": "String"}}},
+  "itemDownloadSaved": "File saved to {path}",
+  "@itemDownloadSaved": {"placeholders": {"path": {"type": "String"}}},
+  "platform": "Platform",
+  "allPlatforms": "All platforms",
   "checkBrowserFeatures": "Check WebAssembly, WebGL and other features",
   "browserBack": "Go back in browser",
   "browserForward": "Go forward in browser",
