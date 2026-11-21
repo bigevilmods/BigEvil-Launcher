@@ -94,6 +94,7 @@
   "itemNotInstalled": "Instalação não encontrada",
   "installedItemVersion": "Versão instalada: {version}",
   "checkingRelease": "Verificando releases…",
+  "githubRateLimit": "Limite de consultas ao GitHub atingido. Tente novamente em {minutes} min.",
   "releaseCheckFailed": "Não foi possível verificar os releases",
   "noStableRelease": "Nenhum release estável encontrado",
   "latestItemRelease": "Release mais recente: {version}",

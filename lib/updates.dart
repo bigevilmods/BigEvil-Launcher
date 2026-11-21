@@ -85,6 +85,12 @@ Release? selectRelease(
 }
 
 class Updater {
+  static const _releaseCacheDuration = Duration(minutes: 15);
+  static final _releases =
+      <String, ({DateTime time, Map<String, dynamic>? data})>{};
+  static final _releaseRequests = <String, Future<Map<String, dynamic>?>>{};
+  static DateTime? _githubRetryAt;
+
   static String? get asset => Platform.isAndroid
       ? 'BigEvil-Launcher-android.apk'
       : switch (Abi.current()) {
@@ -123,6 +129,37 @@ class Updater {
     if (!repositoryPattern.hasMatch(repository)) {
       throw ArgumentError.value(repository, 'repository');
     }
+    final key = repository.toLowerCase();
+    final now = DateTime.now();
+    _releases.removeWhere(
+      (_, value) => now.difference(value.time) >= _releaseCacheDuration,
+    );
+    final cached = _releases[key];
+    if (cached != null) return cached.data;
+    final retryAt = _githubRetryAt;
+    if (retryAt != null && now.isBefore(retryAt)) {
+      throw _rateLimitFailure(retryAt, now);
+    }
+    return _releaseRequests.putIfAbsent(key, () async {
+      try {
+        final data = await _fetchLatestRelease(repository);
+        _releases[key] = (data: data, time: DateTime.now());
+        return data;
+      } finally {
+        _releaseRequests.remove(key);
+      }
+    });
+  }
+
+  static LocalizedFailure _rateLimitFailure(DateTime retryAt, DateTime now) {
+    final seconds = retryAt.difference(now).inSeconds;
+    final minutes = (seconds / 60).ceil().clamp(1, 1440);
+    return LocalizedFailure((messages) => messages.githubRateLimit(minutes));
+  }
+
+  static Future<Map<String, dynamic>?> _fetchLatestRelease(
+    String repository,
+  ) async {
     final client = _client();
     try {
       final request = await client.getUrl(
@@ -133,6 +170,32 @@ class Updater {
       final response = await request.close().timeout(
         const Duration(seconds: 15),
       );
+      final remaining = response.headers.value('x-ratelimit-remaining');
+      final reset = int.tryParse(
+        response.headers.value('x-ratelimit-reset') ?? '',
+      );
+      final retryAfter = int.tryParse(
+        response.headers.value('retry-after') ?? '',
+      );
+      final status = response.statusCode;
+      if (status == 429 ||
+          (status == 403 && (remaining == '0' || retryAfter != null))) {
+        final now = DateTime.now();
+        final resetDate =
+            remaining == '0' &&
+                reset != null &&
+                reset > 0 &&
+                reset < 10000000000
+            ? DateTime.fromMillisecondsSinceEpoch(reset * 1000)
+            : null;
+        var retryAt = now.add(
+          Duration(seconds: retryAfter?.clamp(1, 86400) ?? 60),
+        );
+        if (resetDate != null && resetDate.isAfter(retryAt))
+          retryAt = resetDate;
+        _githubRetryAt = retryAt;
+        throw _rateLimitFailure(retryAt, now);
+      }
       if (response.statusCode == 404) {
         return null;
       }

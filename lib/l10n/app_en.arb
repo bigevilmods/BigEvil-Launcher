@@ -204,6 +204,8 @@
   "installedItemVersion": "Installed: {version}",
   "@installedItemVersion": {"placeholders": {"version": {"type": "String"}}},
   "checkingRelease": "Checking releases…",
+  "githubRateLimit": "GitHub request limit reached. Try again in {minutes} min.",
+  "@githubRateLimit": {"placeholders": {"minutes": {"type": "int"}}},
   "releaseCheckFailed": "Could not check releases",
   "noStableRelease": "No stable release found",
   "latestItemRelease": "Latest release: {version}",

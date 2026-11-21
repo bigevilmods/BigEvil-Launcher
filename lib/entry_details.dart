@@ -221,11 +221,19 @@ class _EntryDetailsState extends State<EntryDetails> {
                     _ => messages.installedItemVersion(installed),
                   }),
                 ),
-              if (_release != null && latest == null)
+              if (release.connectionState == ConnectionState.done &&
+                  release.hasError)
+                OutlinedButton.icon(
+                  onPressed: () => setState(_checkStatus),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(
+                    '${messages.releaseCheckFailed}. '
+                    '${localizedError(messages, release.error!)}',
+                  ),
+                )
+              else if (_release != null && latest == null)
                 Chip(
                   label: Text(switch (release) {
-                    AsyncSnapshot(hasError: true) =>
-                      messages.releaseCheckFailed,
                     AsyncSnapshot(connectionState: ConnectionState.waiting) =>
                       messages.checkingRelease,
                     _ => messages.noStableRelease,
