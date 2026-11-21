@@ -10,7 +10,8 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 install -d "$stage"/{DEBIAN,opt/bigevil-launcher,usr/bin,usr/share/applications,usr/share/icons/hicolor/256x256/apps} "$root/dist"
-cp -a "$root/build/linux/x64/release/bundle/." "$stage/opt/bigevil-launcher/"
+tar -C "$root/build/linux/x64/release/bundle" --exclude='.env' --exclude='.env.*' -cf - . |
+  tar -C "$stage/opt/bigevil-launcher" -xf -
 install -m 644 "$root/packaging/assets/bigevil.png" "$stage/usr/share/icons/hicolor/256x256/apps/bigevil-launcher.png"
 ln -s /opt/bigevil-launcher/bigevil_launcher "$stage/usr/bin/bigevil-launcher"
 cat > "$stage/DEBIAN/control" <<EOF

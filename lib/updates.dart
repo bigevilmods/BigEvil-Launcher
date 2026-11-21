@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'github_token.dart';
 import 'library.dart';
 import 'localization.dart';
 
@@ -22,6 +23,25 @@ final repositoryPattern = RegExp(r'^[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$');
 final versionPattern = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$');
 const maximumPackageBytes = 512 * 1024 * 1024;
 const maximumItemBytes = 10 * 1024 * 1024 * 1024;
+const _maximumIndexAge = Duration(hours: 2);
+final _releaseIndexUrl = Uri.https(
+  'raw.githubusercontent.com',
+  '/bigevilmods/BigEvil-Launcher/refs/heads/release-index/releases.json',
+);
+
+Map<String, dynamic>? parseReleaseIndex(Object? data, DateTime now) {
+  if (data is! Map || data['schema'] != 1) return null;
+  final timestamp = data['generated_at'];
+  final generated = timestamp is String ? DateTime.tryParse(timestamp) : null;
+  final repositories = data['repositories'];
+  if (generated == null ||
+      generated.isAfter(now.add(const Duration(minutes: 5))) ||
+      now.difference(generated) > _maximumIndexAge ||
+      repositories is! Map<String, dynamic>) {
+    return null;
+  }
+  return repositories;
+}
 
 bool isNewer(String candidate, String installed) {
   final next = versionPattern.firstMatch(candidate);
@@ -85,11 +105,13 @@ Release? selectRelease(
 }
 
 class Updater {
+  static final _githubToken = loadGitHubToken();
   static const _releaseCacheDuration = Duration(minutes: 15);
   static final _releases =
       <String, ({DateTime time, Map<String, dynamic>? data})>{};
   static final _releaseRequests = <String, Future<Map<String, dynamic>?>>{};
   static DateTime? _githubRetryAt;
+  static ({DateTime time, Future<Map<String, dynamic>?> data})? _index;
 
   static String? get asset => Platform.isAndroid
       ? 'BigEvil-Launcher-android.apk'
@@ -136,19 +158,67 @@ class Updater {
     );
     final cached = _releases[key];
     if (cached != null) return cached.data;
-    final retryAt = _githubRetryAt;
-    if (retryAt != null && now.isBefore(retryAt)) {
-      throw _rateLimitFailure(retryAt, now);
-    }
     return _releaseRequests.putIfAbsent(key, () async {
       try {
-        final data = await _fetchLatestRelease(repository);
+        final index = await _latestIndex();
+        final data =
+            index != null &&
+                index.containsKey(key) &&
+                (index[key] == null || index[key] is Map<String, dynamic>)
+            ? index[key] as Map<String, dynamic>?
+            : await _fetchLatestRelease(repository);
         _releases[key] = (data: data, time: DateTime.now());
         return data;
       } finally {
         _releaseRequests.remove(key);
       }
     });
+  }
+
+  static Future<Map<String, dynamic>?> _latestIndex() {
+    final now = DateTime.now();
+    final cached = _index;
+    if (cached != null && now.difference(cached.time) < _releaseCacheDuration) {
+      return cached.data;
+    }
+    final future = _fetchIndex();
+    _index = (time: now, data: future);
+    return future;
+  }
+
+  static Future<Map<String, dynamic>?> _fetchIndex() async {
+    final client = _client();
+    try {
+      final request = await client
+          .getUrl(_releaseIndexUrl)
+          .timeout(const Duration(seconds: 5));
+      request.followRedirects = false;
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
+      if (response.statusCode != 200) return null;
+      return parseReleaseIndex(
+        await _readReleaseJson(response),
+        DateTime.now(),
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  static Future<Map<String, dynamic>> _readReleaseJson(
+    HttpClientResponse response,
+  ) async {
+    final body = BytesBuilder(copy: false);
+    await for (final chunk in response.timeout(const Duration(seconds: 15))) {
+      body.add(chunk);
+      if (body.length > 2 * 1024 * 1024) {
+        throw LocalizedFailure((messages) => messages.githubResponseLimit);
+      }
+    }
+    return jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>;
   }
 
   static LocalizedFailure _rateLimitFailure(DateTime retryAt, DateTime now) {
@@ -160,6 +230,12 @@ class Updater {
   static Future<Map<String, dynamic>?> _fetchLatestRelease(
     String repository,
   ) async {
+    final now = DateTime.now();
+    final blockedUntil = _githubRetryAt;
+    if (blockedUntil != null && now.isBefore(blockedUntil)) {
+      throw _rateLimitFailure(blockedUntil, now);
+    }
+    final token = await _githubToken;
     final client = _client();
     try {
       final request = await client.getUrl(
@@ -167,6 +243,9 @@ class Updater {
       );
       request.followRedirects = false;
       request.headers.set('Accept', 'application/vnd.github+json');
+      if (token != null) {
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
       final response = await request.close().timeout(
         const Duration(seconds: 15),
       );
@@ -204,13 +283,7 @@ class Updater {
           (messages) => messages.githubHttpError(response.statusCode),
         );
       }
-      final body = BytesBuilder(copy: false);
-      await for (final chunk in response.timeout(const Duration(seconds: 15))) {
-        body.add(chunk);
-        if (body.length > 2 * 1024 * 1024)
-          throw LocalizedFailure((messages) => messages.githubResponseLimit);
-      }
-      return jsonDecode(utf8.decode(body.takeBytes())) as Map<String, dynamic>;
+      return await _readReleaseJson(response);
     } finally {
       client.close(force: true);
     }

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:bigevil_launcher/dashboard.dart';
 import 'package:bigevil_launcher/entry_details.dart';
 import 'package:bigevil_launcher/entry_status.dart';
+import 'package:bigevil_launcher/github_token.dart';
 import 'package:bigevil_launcher/item_download.dart';
 import 'package:bigevil_launcher/item_installation.dart';
 import 'package:bigevil_launcher/library.dart';
@@ -99,6 +100,45 @@ void main() {
     expect(Updater.resolveRepository(''), 'bigevilmods/BigEvil-Launcher');
     expect(Updater.resolveRepository('owner/fork'), 'owner/fork');
   });
+
+  test('GitHub token configuration accepts only its own valid assignment', () {
+    expect(
+      parseGitHubToken('BIGEVIL_GITHUB_TOKEN=test_token_123'),
+      'test_token_123',
+    );
+    expect(
+      parseGitHubToken('''# comment
+export BIGEVIL_GITHUB_TOKEN = "test_token_123" # comment'''),
+      'test_token_123',
+    );
+    expect(parseGitHubToken('GITHUB_TOKEN=test_token_123'), isNull);
+    expect(parseGitHubToken('BIGEVIL_GITHUB_TOKEN=\nnot_a_token'), isNull);
+    expect(parseGitHubToken('BIGEVIL_GITHUB_TOKEN="Bearer bad"'), isNull);
+  });
+
+  test(
+    'release index supports known missing releases and rejects stale data',
+    () {
+      final now = DateTime.utc(2026, 1, 1, 12);
+      final data = {
+        'schema': 1,
+        'generated_at': now.toIso8601String(),
+        'repositories': <String, dynamic>{
+          'demo/game': {'tag_name': 'v1.0.0', 'assets': []},
+          'demo/empty': null,
+        },
+      };
+      final index = parseReleaseIndex(data, now)!;
+      expect(index['demo/game']['tag_name'], 'v1.0.0');
+      expect(index.containsKey('demo/empty'), isTrue);
+      expect(index['demo/empty'], isNull);
+      expect(
+        parseReleaseIndex(data, now.add(const Duration(hours: 3))),
+        isNull,
+      );
+      expect(parseReleaseIndex({...data, 'schema': 2}, now), isNull);
+    },
+  );
 
   test('catalog accepts remote items and rejects local paths', () {
     final entries = Library.parseCatalog('''

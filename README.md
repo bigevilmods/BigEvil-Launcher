@@ -90,6 +90,18 @@ When testing version 1.0.0 on Windows x64, the microbenchmark compiled with `dar
 
 ## GitHub Releases
 
+### Public release index
+
+The [release index workflow](.github/workflows/release-index.yml) checks the launcher and each GitHub repository in the catalog twice per hour, on relevant pushes to `main`, or on manual dispatch. It publishes `releases.json` to the `release-index` branch. The launcher reads the public index first and downloads the selected package from GitHub. Missing repositories and indexes older than two hours fall back to the GitHub API.
+
+The workflow uses GitHub Actions' built-in token by default. To use a separate read-only token for release lookups, set the repository Actions secret `RELEASE_INDEX_TOKEN`. The generated file contains release metadata only. The workflow needs to run successfully on GitHub once before the public index is available.
+
+### Optional API authentication
+
+Set `BIGEVIL_GITHUB_TOKEN` in the environment of the launcher process, or copy [`.env.example`](.env.example) to `.env` and fill in the value locally. On Windows and Linux, place the file beside the launcher executable or in the application's support directory. On Android, the file can be provisioned in the app's private support directory. Restart the launcher after updating the token. Use a token with read-only access to the release repositories. Keep the real `.env` out of commits and distribution packages.
+
+### Publishing
+
 1. Host the code in a public GitHub repository. Configure the `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, and `ANDROID_KEY_ALIAS` secrets. Use the same Android signing key across releases.
 2. Update `version` in `pubspec.yaml`. Increase the number after `+` for each Android release. Push a tag that matches the version without its build number, such as `v1.1.0` for `1.1.0+2`.
 3. The workflow builds all three platforms and publishes the release after all jobs pass. It embeds the repository and version in the binary. Local builds use `bigevilmods/BigEvil-Launcher` by default. Set `--dart-define=BIGEVIL_VERSION=1.3.0` to match the version being built. To use a different repository, set `--dart-define=BIGEVIL_REPOSITORY=owner/repository` when building. Repository overrides saved by older versions are still read.

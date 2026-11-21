@@ -23,7 +23,9 @@ foreach ($name in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
 }
 New-Item -ItemType Directory -Force $dist | Out-Null
 if ($Portable) {
-    Compress-Archive -Path "$bundle\*" -DestinationPath (Join-Path $dist 'BigEvil-Launcher-windows-x64-portable.zip') -Force
+    $files = Get-ChildItem -LiteralPath $bundle |
+        Where-Object { $_.Name -ne '.env' -and $_.Name -notlike '.env.*' }
+    Compress-Archive -LiteralPath $files.FullName -DestinationPath (Join-Path $dist 'BigEvil-Launcher-windows-x64-portable.zip') -Force
 } else {
     & $CompilerPath "/DAppVersion=$Version" (Join-Path $PSScriptRoot 'windows.iss')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
