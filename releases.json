@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-23T20:18:44.363578+00:00",
+  "generated_at": "2026-11-24T04:59:24.474679+00:00",
   "repositories": {
     "bigevilmods/bigevil-launcher": {
       "tag_name": "1.0",
@@ -29,12 +29,12 @@
       "published_at": "2026-11-21T15:56:36Z",
       "assets": [
         {
-          "id": 776071633,
-          "name": "FF-NES-Windows-x64.zip",
+          "id": 784744987,
+          "name": "FinalFantasy.zip",
           "state": "uploaded",
-          "size": 6572953,
-          "digest": "sha256:cb9ce7b2eaa364c23e090c4bf82b49e10faa5b6df3214bf8e7e625846cf66902",
-          "browser_download_url": "https://github.com/bigevilmods/FInal-Fantasy-NSE-Recomp/releases/download/1.0/FF-NES-Windows-x64.zip"
+          "size": 6425510,
+          "digest": "sha256:866657e53e4d141b8f6110d7afecba9a75dcab4df85e285ecf45d48b316aae2b",
+          "browser_download_url": "https://github.com/bigevilmods/FInal-Fantasy-NSE-Recomp/releases/download/1.0/FinalFantasy.zip"
         }
       ]
     },
@@ -65,12 +65,12 @@
       "published_at": "2026-11-21T19:54:26Z",
       "assets": [
         {
-          "id": 776695883,
-          "name": "Windows.zip",
+          "id": 784748765,
+          "name": "WorldOfMagic.zip",
           "state": "uploaded",
-          "size": 4542973,
-          "digest": "sha256:bfe362fc047d1d6f803839a1427113174e9acbaa6ce83eb2983e3b30a2eff677",
-          "browser_download_url": "https://github.com/bigevilmods/World-of-Magic-Starring-Mickey-Mouse/releases/download/release/Windows.zip"
+          "size": 4397763,
+          "digest": "sha256:5fd4c732ce5d85bda9cc065aeb3f22b16621a1de9f7ae6d1f5617891c53b20cb",
+          "browser_download_url": "https://github.com/bigevilmods/World-of-Magic-Starring-Mickey-Mouse/releases/download/release/WorldOfMagic.zip"
         }
       ]
     }
